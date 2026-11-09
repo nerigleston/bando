@@ -428,7 +428,8 @@ struct SessionPane: View {
     @ViewBuilder var terminal: some View {
         if let tmux = try? Tmux(server: session.tmuxServer), session.status.isLive, tmux.hasSession(session.tmuxName) {
             TerminalPane(argv: tmux.attachCommand(session.tmuxName), cwd: session.worktreePath,
-                         theme: model.theme, fontSize: model.fontSize, focused: focused)
+                         theme: model.theme, fontSize: model.fontSize, focused: focused,
+                         onFocus: inGrid ? { focusCell() } : nil)
                 .padding(.leading, inGrid ? 14 : 12).padding(.trailing, inGrid ? 6 : 4)
                 .padding(.top, inGrid ? 10 : 6).padding(.bottom, inGrid ? 6 : 2)
         } else {
@@ -437,6 +438,13 @@ struct SessionPane: View {
     }
 
     var projectName: String { model.project(session.projectId)?.name ?? "" }
+
+    /// Clique no terminal ou no cabeçalho de um painel da grade: ele vira o foco.
+    func focusCell() {
+        guard let cell = cellIndex, model.focusedCell != cell || model.selection != session.id else { return }
+        model.focusedCell = cell
+        model.select(session.id)
+    }
 
     /// Cabeçalho da sessão aberta sozinha (48 pt): projeto / nome, branch, contexto, agente, ações.
     var header: some View {
@@ -520,7 +528,7 @@ struct SessionPane: View {
         .animation(.easeOut(duration: 0.12), value: hovering)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { model.openAlone(session.id) }
-        .onTapGesture { if let cell = cellIndex { model.focusedCell = cell; model.select(session.id) } }
+        .onTapGesture { focusCell() }
         .contextMenu { SessionContextMenu(session: session) }
     }
 

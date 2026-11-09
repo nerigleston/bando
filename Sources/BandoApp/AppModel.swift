@@ -276,7 +276,7 @@ final class AppModel {
         if s.status == .review, let service {
             Task.detached { try? service.markSeen(id) }
         }
-        if gridMode, let cell = gridCells.firstIndex(of: id) { focusedCell = cell }
+        if gridMode, let cell = gridSessions.firstIndex(where: { $0.id == id }) { focusedCell = cell }
     }
 
     func selectNextWaiting() {
