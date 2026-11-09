@@ -429,7 +429,8 @@ struct SessionPane: View {
         if let tmux = try? Tmux(server: session.tmuxServer), session.status.isLive, tmux.hasSession(session.tmuxName) {
             TerminalPane(argv: tmux.attachCommand(session.tmuxName), cwd: session.worktreePath,
                          theme: model.theme, fontSize: model.fontSize, focused: focused)
-                .padding(.leading, 8).padding(.top, 4)
+                .padding(.leading, inGrid ? 14 : 12).padding(.trailing, inGrid ? 6 : 4)
+                .padding(.top, inGrid ? 10 : 6).padding(.bottom, inGrid ? 6 : 2)
         } else {
             stopped
         }
@@ -467,40 +468,56 @@ struct SessionPane: View {
         .frame(height: 48)
     }
 
-    /// Cabeçalho do painel na grade (28 pt), tingido pela cor do estado.
+    /// Cabeçalho do painel na grade (34 pt): estado, projeto / nome e branch à
+    /// esquerda; contexto e estado à direita. As ações entram no lugar do
+    /// estado quando o mouse passa por cima.
     var gridHeader: some View {
         let tint = StateColor.dot(session.status)
-        return HStack(spacing: 5) {
-            Text(projectName).font(.system(size: 12)).foregroundStyle(StateColor.magenta).lineLimit(1)
-            Text("/").font(.system(size: 12)).foregroundStyle(p.tertiary)
-            Text(session.name).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+        return HStack(spacing: 8) {
+            StatusIcon(status: session.status, size: 11)
+            (Text(projectName).foregroundStyle(p.secondary)
+             + Text("  /  ").foregroundStyle(p.tertiary)
+             + Text(session.name).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(p.text))
+                .font(.system(size: 12)).lineLimit(1).truncationMode(.tail)
+                .layoutPriority(1)
             if let branch = session.branch {
-                Text(branch.replacingOccurrences(of: "bando/", with: ""))
-                    .font(.system(size: 11, design: .monospaced)).foregroundStyle(StateColor.cyan)
-                    .lineLimit(1).frame(maxWidth: 140, alignment: .leading)
+                // Só aparece se couber inteira (até 150 pt); senão some.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.triangle.branch").font(.system(size: 9, weight: .semibold))
+                        Text(branch.replacingOccurrences(of: "bando/", with: "")).font(.system(size: 10.5, design: .monospaced))
+                            .lineLimit(1).truncationMode(.middle).frame(maxWidth: 120)
+                    }
+                    .fixedSize()
+                    .foregroundStyle(StateColor.cyan)
+                    .padding(.horizontal, 6).frame(height: 18)
+                    .background(Capsule().fill(StateColor.cyan.opacity(0.10)))
+                    Color.clear.frame(width: 0, height: 0)
+                }
+                .help(session.worktreePath)
             }
-            ContextRing(session: session).scaleEffect(0.85)
             Spacer(minLength: 6)
             if hovering {
-                Group {
-                    IconButton(symbol: "arrow.up.left.and.arrow.down.right", help: "Abrir só esta sessão") { model.openAlone(session.id) }
+                HStack(spacing: 2) {
+                    IconButton(symbol: "arrow.up.left.and.arrow.down.right", help: "Abrir só esta sessão", size: 12) { model.openAlone(session.id) }
                     if session.status.isLive {
-                        IconButton(symbol: "stop.circle", help: "Parar sessão") { model.stopSession(session.id) }
+                        IconButton(symbol: "stop.circle", help: "Parar sessão", size: 12) { model.stopSession(session.id) }
                     }
-                    IconButton(symbol: "xmark", help: "Tirar da grade") { model.removeFromGrid(session.id) }
+                    IconButton(symbol: "rectangle.badge.minus", help: "Tirar da grade", size: 12) { model.removeFromGrid(session.id) }
+                    SessionActionsButton(session: session, size: 12)
                 }
                 .transition(.opacity)
-            }
-            HStack(spacing: 4) {
-                Circle().fill(tint ?? p.tertiary).frame(width: 6, height: 6)
-                Text(StateColor.label(session.status)).font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(tint ?? p.secondary)
+            } else {
+                ContextRing(session: session).scaleEffect(0.8).fixedSize()
+                Text(StateColor.label(session.status)).font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(tint ?? p.tertiary).lineLimit(1).fixedSize()
+                    .transition(.opacity)
             }
         }
-        .padding(.horizontal, 12)
-        .frame(height: 30)
-        .background((tint ?? .clear).opacity(0.10))
-        .animation(.easeOut(duration: 0.15), value: hovering)
+        .padding(.leading, 12).padding(.trailing, 8)
+        .frame(height: 34)
+        .background(p.card)
+        .animation(.easeOut(duration: 0.12), value: hovering)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { model.openAlone(session.id) }
         .onTapGesture { if let cell = cellIndex { model.focusedCell = cell; model.select(session.id) } }
@@ -536,8 +553,8 @@ struct SessionPane: View {
 struct SessionGrid: View {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var p
-    static let gap: CGFloat = 12
-    static let pad: CGFloat = 12
+    static let gap: CGFloat = 10
+    static let pad: CGFloat = 10
     @State private var dropTargeted = false
 
     var body: some View {
@@ -592,11 +609,10 @@ struct SessionGrid: View {
     }
 
     func border(_ s: Session, focused: Bool) -> (Color, CGFloat) {
-        if focused { return (StateColor.focus.opacity(0.5), 1.5) }
+        // Só o foco e o que pede você ganham cor; o resto fica discreto.
+        if focused { return (p.accent.opacity(0.55), 1.5) }
         switch s.status {
-        case .waiting: return (StateColor.waiting.opacity(0.5), 1)
-        case .review: return (StateColor.cyan.opacity(0.4), 1)
-        case .working, .starting: return (StateColor.working.opacity(0.3), 1)
+        case .waiting: return (StateColor.waiting.opacity(0.55), 1.5)
         case .error: return (StateColor.failed.opacity(0.5), 1)
         default: return (p.border, 1)
         }
@@ -607,8 +623,9 @@ struct SessionGrid: View {
         let b = border(s, focused: focused)
         return SessionPane(session: s, focused: focused, cellIndex: index)
             .id(s.id)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(b.0, lineWidth: b.1))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(b.0, lineWidth: b.1))
+            .shadow(color: .black.opacity(focused ? 0.25 : 0), radius: 10, y: 3)
             .opacity(model.dimUnfocused && !focused ? 0.6 : 1)
             .animation(.easeOut(duration: 0.15), value: focused)
             .dropDestination(for: String.self) { ids, _ in
