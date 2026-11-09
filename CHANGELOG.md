@@ -1,5 +1,10 @@
 # Mudanças
 
+## 0.1.10
+
+- "Não esmaecer os sem foco" fica salvo: antes voltava a esmaecer quando o app reabria (inclusive depois de atualizar).
+- Menu da grade mais largo, sem textos cortados.
+
 ## 0.1.9
 
 - Cmd+clique num caminho de arquivo no terminal mostra o arquivo no Finder (antes aparecia "Link blocked"). Vale para caminho absoluto, com ~, file:// ou relativo à pasta da sessão, mesmo com ponto final ou :linha:coluna no fim.

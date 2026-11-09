@@ -23,7 +23,10 @@ final class AppModel {
     var selection: String?
     var sidebarMode: SidebarMode = .byProject
     var sidebarWidth: CGFloat = 250
-    var dimUnfocused = true
+    /// Esmaecer os painéis sem foco na grade. Guardado entre aberturas do app.
+    var dimUnfocused = UserDefaults.standard.object(forKey: "dimUnfocused") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(dimUnfocused, forKey: "dimUnfocused") }
+    }
     /// Grade ligada (senão mostra só a sessão selecionada).
     var gridMode = false
     var gridCols = 2

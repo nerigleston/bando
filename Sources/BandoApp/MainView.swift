@@ -229,7 +229,7 @@ struct GridPicker: View {
 
             Rectangle().fill(p.border).frame(height: 1)
             VStack(spacing: 0) {
-                MenuRow(symbol: "rectangle.stack.badge.plus", title: "Preencher com as sessões ativas") { model.autoFillGrid() }
+                MenuRow(symbol: "rectangle.stack.badge.plus", title: "Preencher com as ativas") { model.autoFillGrid() }
                 MenuRow(symbol: "equal.square", title: "Igualar tamanhos") {
                     model.equalize(columns: true); model.equalize(columns: false)
                 }
@@ -242,7 +242,7 @@ struct GridPicker: View {
             .disabled(!model.gridMode)
             .opacity(model.gridMode ? 1 : 0.4)
         }
-        .frame(width: 136 + 24)
+        .frame(width: 260)
         .environment(\.palette, p)
     }
 }
