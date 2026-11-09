@@ -1,5 +1,12 @@
 # Mudanças
 
+## 0.1.2
+
+- Grade com mais respiro: margem no terminal, cantos arredondados e espaço entre os painéis.
+- Cabeçalho de cada painel com projeto e título num texto só, branch que some quando não cabe e ações ao passar o mouse.
+- Clicar dentro do terminal de um painel move o foco para ele.
+- O .dmg abre com o atalho para Aplicativos: é só arrastar.
+
 ## 0.1.1
 
 Primeira versão publicada.
