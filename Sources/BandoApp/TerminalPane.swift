@@ -32,6 +32,7 @@ struct TerminalPane: NSViewRepresentable {
         context.coordinator.appliedFont = fontSize
         context.coordinator.onFocus = onFocus
         context.coordinator.watchClicks(on: view)
+        context.coordinator.watchShiftReturn(on: view)
         return view
     }
 
@@ -85,9 +86,27 @@ struct TerminalPane: NSViewRepresentable {
             }
         }
 
+        private var keyMonitor: Any?
+
+        /// Shift+Enter quebra a linha no agente: manda Esc+Enter, a mesma
+        /// sequência do Option+Enter (o terminal manda Enter puro para Shift+Enter,
+        /// e os agentes não distinguem). Só vale para o terminal com foco.
+        func watchShiftReturn(on view: LocalProcessTerminalView) {
+            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak view] event in
+                guard let view, event.window === view.window, view.window?.firstResponder === view,
+                      event.keyCode == 36 || event.keyCode == 76,   // Return e Enter do teclado numérico
+                      event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .shift
+                else { return event }
+                view.send(data: [0x1B, 0x0D][...])
+                return nil
+            }
+        }
+
         func stopWatching() {
             if let monitor { NSEvent.removeMonitor(monitor) }
             monitor = nil
+            if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+            keyMonitor = nil
         }
         func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
         func setTerminalTitle(source: LocalProcessTerminalView, title: String) {}

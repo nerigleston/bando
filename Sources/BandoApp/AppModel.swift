@@ -137,6 +137,7 @@ final class AppModel {
         if let open = ProcessInfo.processInfo.environment["BANDO_OPEN"] {
             if open == "composer" { openComposer() }
             else if open == "projects" { sidebarMode = .projects }
+            else if open.hasPrefix("session:") { gridMode = false; select(String(open.dropFirst(8))) }
             else if open.hasPrefix("project:"), let p = projects.first(where: { $0.name == String(open.dropFirst(8)) }) { openProject(p.id) }
         }
         // Pedido de permissão não pode travar o carregamento: a resposta só
