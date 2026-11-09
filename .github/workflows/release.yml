@@ -31,12 +31,18 @@ env:
 
 jobs:
   release:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # SwiftTerm 1.99 exige Swift 6.2+; usa o Xcode mais novo da máquina.
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Versão do Swift
+        run: swift --version
       - name: Versão a partir da tag
         id: v
         run: |
