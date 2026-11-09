@@ -127,7 +127,9 @@ jobs:
         run: |
           mkdir -p dist
           ditto -c -k --keepParent build/Bando.app "dist/Bando-${{ steps.v.outputs.version }}.zip"
-          hdiutil create -volname Bando -srcfolder build/Bando.app -ov -format UDZO \
+          # DMG com o app e o atalho para Aplicativos (instala arrastando).
+          mkdir -p dmg && ditto build/Bando.app dmg/Bando.app && ln -s /Applications dmg/Aplicativos
+          hdiutil create -volname "Bando ${{ steps.v.outputs.version }}" -srcfolder dmg -ov -format UDZO \
             "dist/Bando-${{ steps.v.outputs.version }}.dmg"
 
       - name: Ferramentas do Sparkle
