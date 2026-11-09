@@ -307,6 +307,9 @@ struct SessionActionsButton: View {
     @Environment(AppModel.self) private var model
     let session: Session
     var size: CGFloat = 14
+    /// Avisa quem mostra o botão só no hover: com o menu aberto o botão precisa
+    /// continuar na tela, senão o menu perde a âncora e para de responder.
+    var onOpenChange: ((Bool) -> Void)? = nil
     @State private var open = false
 
     var body: some View {
@@ -324,6 +327,7 @@ struct SessionActionsButton: View {
                 .environment(model)
                 .environment(\.palette, p)
         }
+        .onChange(of: open) { _, v in onOpenChange?(v) }
     }
 }
 

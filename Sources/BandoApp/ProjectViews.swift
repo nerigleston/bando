@@ -409,6 +409,7 @@ struct SessionCard: View {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var p
     let session: Session
+    @State private var menuOpen = false
     @State private var hovering = false
 
     var body: some View {
@@ -418,7 +419,7 @@ struct SessionCard: View {
                 Circle().fill(tint ?? p.tertiary).frame(width: 6, height: 6)
                 Text(StateColor.label(session.status)).font(.system(size: 11, design: .monospaced)).foregroundStyle(tint ?? p.secondary)
                 Spacer()
-                if hovering { SessionActionsButton(session: session, size: 12) }
+                if hovering || menuOpen { SessionActionsButton(session: session, size: 12) { menuOpen = $0 } }
             }
             Text(session.name).font(.system(size: 13.5, weight: .semibold)).lineLimit(1)
             if let b = session.branch {

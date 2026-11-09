@@ -205,11 +205,42 @@ final class AppModel {
         sessions = fresh
         if let sel = selection, !sessions.contains(where: { $0.id == sel }) { selection = nil }
         refreshContexts()
+        refreshTmux()
         // Grade ligada mas vazia (ex.: ao abrir o app): preenche com as ativas.
         if gridMode && gridSessions.isEmpty && sessions.contains(where: \.status.isLive) { autoFillGrid() }
         // Nunca deixa o centro vazio: abre a sessão mais urgente.
         if selection == nil, let first = orderedSessions.first ?? finishedSessions.first { selection = first.id }
         updateDockBadge()
+    }
+
+    /// Sessões que existem no tmux, por servidor. Lidas fora da main thread: a
+    /// tela nunca roda o tmux enquanto desenha (rodar um processo e esperar
+    /// dentro do desenho reentra no ciclo de atualização e derruba o app).
+    var liveTmux: [String: Set<String>] = [:]
+    @ObservationIgnored private var tmuxRefreshing = false
+
+    func refreshTmux() {
+        guard !tmuxRefreshing else { return }
+        tmuxRefreshing = true
+        let servers = Set(sessions.filter(\.status.isLive).map(\.tmuxServer)).union([Tmux.bandoServer])
+        Task.detached(priority: .userInitiated) {
+            var found: [String: Set<String>] = [:]
+            for server in servers {
+                if let tmux = try? Tmux(server: server) { found[server] = Set(tmux.listSessions()) }
+            }
+            await MainActor.run {
+                if found != self.liveTmux { self.liveTmux = found }
+                self.tmuxRefreshing = false
+            }
+        }
+    }
+
+    /// O terminal pode anexar? Enquanto a primeira leitura não chega, confia no
+    /// estado gravado no banco.
+    func canAttach(_ s: Session) -> Bool {
+        guard s.status.isLive else { return false }
+        guard let names = liveTmux[s.tmuxServer] else { return true }
+        return names.contains(s.tmuxName)
     }
 
     /// Lê o contexto das sessões na tela (fora da main thread). O transcript

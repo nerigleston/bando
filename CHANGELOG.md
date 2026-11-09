@@ -1,5 +1,10 @@
 # Mudanças
 
+## 0.1.7
+
+- Corrige o fechamento inesperado do app: a tela consultava o tmux enquanto desenhava os painéis. Agora a consulta roda em segundo plano.
+- O menu ⋯ da sessão volta a responder: o botão some com o mouse fora, e o menu aberto perdia a âncora.
+
 ## 0.1.6
 
 - A linha da sessão na lateral não muda mais de altura quando o mouse passa por cima.

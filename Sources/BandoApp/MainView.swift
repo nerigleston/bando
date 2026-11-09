@@ -412,6 +412,7 @@ struct SessionPane: View {
     var focused: Bool
     var cellIndex: Int? = nil
     @State private var hovering = false
+    @State private var menuOpen = false
 
     var inGrid: Bool { cellIndex != nil }
 
@@ -426,7 +427,7 @@ struct SessionPane: View {
     }
 
     @ViewBuilder var terminal: some View {
-        if let tmux = try? Tmux(server: session.tmuxServer), session.status.isLive, tmux.hasSession(session.tmuxName) {
+        if model.canAttach(session), let tmux = try? Tmux(server: session.tmuxServer) {
             TerminalPane(argv: tmux.attachCommand(session.tmuxName), cwd: session.worktreePath,
                          theme: model.theme, fontSize: model.fontSize, focused: focused,
                          onFocus: inGrid ? { focusCell() } : nil)
@@ -505,14 +506,14 @@ struct SessionPane: View {
                 .help(session.worktreePath)
             }
             Spacer(minLength: 6)
-            if hovering {
+            if hovering || menuOpen {
                 HStack(spacing: 2) {
                     IconButton(symbol: "arrow.up.left.and.arrow.down.right", help: "Abrir só esta sessão", size: 12) { model.openAlone(session.id) }
                     if session.status.isLive {
                         IconButton(symbol: "stop.circle", help: "Parar sessão", size: 12) { model.stopSession(session.id) }
                     }
                     IconButton(symbol: "rectangle.badge.minus", help: "Tirar da grade", size: 12) { model.removeFromGrid(session.id) }
-                    SessionActionsButton(session: session, size: 12)
+                    SessionActionsButton(session: session, size: 12) { menuOpen = $0 }
                 }
                 .transition(.opacity)
             } else {

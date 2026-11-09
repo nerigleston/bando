@@ -257,6 +257,7 @@ struct SessionRow: View {
     let session: Session
     var showProject = true
     @State private var hovering = false
+    @State private var menuOpen = false
 
     var isSelected: Bool { model.selection == session.id }
     var inGrid: Bool { model.gridMode && model.gridSessions.contains { $0.id == session.id } }
@@ -310,8 +311,8 @@ struct SessionRow: View {
     }
 
     @ViewBuilder var trailing: some View {
-        if hovering {
-            SessionActionsButton(session: session, size: 12)
+        if hovering || menuOpen {
+            SessionActionsButton(session: session, size: 12) { menuOpen = $0 }
         } else if let color = StateColor.dot(session.status) {
             Circle().fill(color).frame(width: 8, height: 8)
                 .frame(width: 18)
