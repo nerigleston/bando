@@ -2,10 +2,6 @@
 
 ## 0.1.1
 
-- Notificação do macOS quando há versão nova e o Bando não está em foco; clicar nela abre a janela de instalação.
-
-## 0.1.0
-
 Primeira versão publicada.
 
 - Sessões em git worktree + tmux, com qualquer agente configurado em TOML (28 no catálogo) e 53 providers.
@@ -14,4 +10,8 @@ Primeira versão publicada.
 - Troca de agente na mesma sessão, com resumo ou conversa levados ao novo agente.
 - MCP centralizado, uso e custo por sessão, relatórios por dia, semana, mês ou intervalo.
 - Importação do Xirp (projetos, sessões, custos e PRs).
-- Atualização automática: o app avisa poucos minutos depois de uma versão nova ser publicada.
+- Atualização automática: poucos minutos depois de uma versão nova sair, o app avisa (por notificação, se estiver em segundo plano) e instala com um clique.
+
+## 0.1.0
+
+Não publicada (o build universal falhou no CI).

@@ -21,13 +21,31 @@ BUILD="${BANDO_BUILD:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}"
 IDENTITY="${BANDO_SIGN_IDENTITY:--}"
 BUNDLE_ID="io.github.nerigleston.bando"
 
-ARCH=()
-[ "${BANDO_UNIVERSAL:-0}" = "1" ] && ARCH=(--arch arm64 --arch x86_64)
+# Universal: compila cada arquitetura separada e junta com lipo. Pedir as duas
+# de uma vez (--arch arm64 --arch x86_64) usa o build do Xcode, que não resolve
+# o plugin de build do SwiftTerm.
+build_arch() {  # $1 = triple vazio (nativo) ou arm64/x86_64
+  local T=()
+  [ -n "$1" ] && T=(--triple "$1-apple-macosx14.0")
+  swift build -c "$CONF" ${T[@]+"${T[@]}"} --product BandoApp >&2
+  swift build -c "$CONF" ${T[@]+"${T[@]}"} --product bando >&2
+  swift build -c "$CONF" ${T[@]+"${T[@]}"} --show-bin-path
+}
 
-echo "==> compilando ($CONF${ARCH:+, universal})"
-swift build -c "$CONF" ${ARCH[@]+"${ARCH[@]}"} --product BandoApp
-swift build -c "$CONF" ${ARCH[@]+"${ARCH[@]}"} --product bando
-BIN="$(swift build -c "$CONF" ${ARCH[@]+"${ARCH[@]}"} --show-bin-path)"
+if [ "${BANDO_UNIVERSAL:-0}" = "1" ]; then
+  echo "==> compilando ($CONF, arm64 + x86_64)"
+  BIN_ARM="$(build_arch arm64)"
+  BIN_X86="$(build_arch x86_64)"
+  BIN="build/universal"
+  rm -rf "$BIN" && mkdir -p "$BIN"
+  for exe in BandoApp bando; do
+    lipo -create "$BIN_ARM/$exe" "$BIN_X86/$exe" -output "$BIN/$exe"
+  done
+  for b in "$BIN_ARM"/*.bundle; do [ -e "$b" ] && ditto "$b" "$BIN/$(basename "$b")"; done
+else
+  echo "==> compilando ($CONF)"
+  BIN="$(build_arch "")"
+fi
 
 APP="build/Bando.app"
 rm -rf "$APP"
