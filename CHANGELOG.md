@@ -4,6 +4,7 @@
 
 - "Geral": sessões fora de um projeto (na pasta pessoal) ficam num grupo próprio no topo da lateral, como o "General" do Xirp. Dá para abrir uma sessão nova nele pelo seletor de projeto.
 - Pasta sem git não dá mais erro: a sessão roda direto nela, sem worktree.
+- A página do projeto usa a largura toda da janela.
 - `bando import xirp` traz as sessões do "General" do Xirp para o Geral, e `--so-sessoes` reimporta sem mexer em custos e PRs.
 
 ## 0.1.4
