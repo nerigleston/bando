@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.1.9
+
+- Cmd+clique num caminho de arquivo no terminal mostra o arquivo no Finder (antes aparecia "Link blocked"). Vale para caminho absoluto, com ~, file:// ou relativo à pasta da sessão, mesmo com ponto final ou :linha:coluna no fim.
+
 ## 0.1.8
 
 - Shift+Enter quebra a linha no agente (antes só Option+Enter). O Bando manda a mesma sequência do Option+Enter, que Claude Code e os outros agentes entendem.

@@ -14,8 +14,9 @@ struct TerminalPane: NSViewRepresentable {
     /// Chamado quando o usuário clica dentro deste terminal (a grade move o foco).
     var onFocus: (() -> Void)? = nil
 
-    func makeNSView(context: Context) -> LocalProcessTerminalView {
-        let view = LocalProcessTerminalView(frame: .zero)
+    func makeNSView(context: Context) -> BandoTerminalView {
+        let view = BandoTerminalView(frame: .zero)
+        view.workingDirectory = cwd
         view.processDelegate = context.coordinator
         // O histórico longo fica no tmux (rolagem com o mouse); o terminal local
         // só precisa de um pouco além da tela.
@@ -36,7 +37,7 @@ struct TerminalPane: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ view: LocalProcessTerminalView, context: Context) {
+    func updateNSView(_ view: BandoTerminalView, context: Context) {
         context.coordinator.onFocus = onFocus
         if context.coordinator.appliedTheme != theme?.id || context.coordinator.appliedFont != fontSize {
             apply(to: view)
@@ -48,7 +49,7 @@ struct TerminalPane: NSViewRepresentable {
         }
     }
 
-    private func apply(to view: LocalProcessTerminalView) {
+    private func apply(to view: BandoTerminalView) {
         view.font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
         guard let theme else { return }
         view.nativeBackgroundColor = theme.background.nsColor
@@ -60,7 +61,7 @@ struct TerminalPane: NSViewRepresentable {
         })
     }
 
-    static func dismantleNSView(_ view: LocalProcessTerminalView, coordinator: Coordinator) {
+    static func dismantleNSView(_ view: BandoTerminalView, coordinator: Coordinator) {
         // Encerra só o cliente `tmux attach`; a sessão continua.
         coordinator.stopWatching()
         view.terminate()
@@ -91,7 +92,7 @@ struct TerminalPane: NSViewRepresentable {
         /// Shift+Enter quebra a linha no agente: manda Esc+Enter, a mesma
         /// sequência do Option+Enter (o terminal manda Enter puro para Shift+Enter,
         /// e os agentes não distinguem). Só vale para o terminal com foco.
-        func watchShiftReturn(on view: LocalProcessTerminalView) {
+        func watchShiftReturn(on view: BandoTerminalView) {
             keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak view] event in
                 guard let view, event.window === view.window, view.window?.firstResponder === view,
                       event.keyCode == 36 || event.keyCode == 76,   // Return e Enter do teclado numérico
@@ -112,5 +113,58 @@ struct TerminalPane: NSViewRepresentable {
         func setTerminalTitle(source: LocalProcessTerminalView, title: String) {}
         func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
         func processTerminated(source: TerminalView, exitCode: Int32?) {}
+    }
+}
+
+
+/// Terminal do Bando: Cmd+clique num caminho de arquivo mostra no Finder.
+/// O SwiftTerm só abre links com esquema (https://…) e bloqueia caminhos.
+final class BandoTerminalView: LocalProcessTerminalView {
+    /// Pasta da sessão, para resolver caminhos relativos.
+    var workingDirectory: String?
+
+    override func requestOpenLink(source: TerminalView, request: TerminalLinkRequest) {
+        if let url = Self.fileURL(from: request.link, relativeTo: workingDirectory) {
+            // Só mostra no Finder (seleciona o item); não abre nem executa.
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+            return
+        }
+        super.requestOpenLink(source: source, request: request)
+    }
+
+    /// Caminho existente a partir do texto do link: aceita absoluto, ~, file://
+    /// e relativo; tira pontuação do fim e sufixo :linha:coluna.
+    static func fileURL(from link: String, relativeTo cwd: String?) -> URL? {
+        var text = link.trimmingCharacters(in: .whitespacesAndNewlines)
+        while let first = text.first, "(<[{'\"`".contains(first) { text.removeFirst() }
+        if text.hasPrefix("file://") {
+            guard let u = URL(string: text), u.isFileURL else { return nil }
+            text = u.path
+        } else if text.range(of: #"^[a-zA-Z][a-zA-Z0-9+.-]*://"#, options: .regularExpression) != nil {
+            return nil   // outro esquema (https, etc.): fica com o SwiftTerm
+        }
+        let fm = FileManager.default
+        func resolve(_ t: String) -> URL? {
+            guard !t.isEmpty else { return nil }
+            var path = (t as NSString).expandingTildeInPath
+            if !path.hasPrefix("/") {
+                guard let cwd else { return nil }
+                path = (cwd as NSString).appendingPathComponent(path)
+            }
+            let url = URL(fileURLWithPath: path).standardizedFileURL
+            return fm.fileExists(atPath: url.path) ? url : nil
+        }
+        if let u = resolve(text) { return u }
+        // Pontuação de frase no fim ("arquivo.zip." ou "(pasta)").
+        var trimmed = text
+        while let last = trimmed.last, ".,;:)]}'\"`>".contains(last) {
+            trimmed.removeLast()
+            if let u = resolve(trimmed) { return u }
+        }
+        // Sufixo :linha ou :linha:coluna (saída de compiladores e grep).
+        if let r = trimmed.range(of: #"(:\d+){1,2}$"#, options: .regularExpression) {
+            return resolve(String(trimmed[..<r.lowerBound]))
+        }
+        return nil
     }
 }
