@@ -6,7 +6,10 @@
 #   BANDO_BUILD            CFBundleVersion, número que só cresce (padrão: commits no HEAD)
 #   BANDO_FEED_URL         URL do appcast do Sparkle (sem ela, atualização fica desligada)
 #   BANDO_ED_PUBLIC_KEY    chave pública EdDSA do Sparkle
-#   BANDO_SIGN_IDENTITY    identidade Developer ID (padrão: assinatura ad hoc "-")
+#   BANDO_SIGN_IDENTITY    identidade de assinatura (padrão: ad hoc "-"). Com "Developer ID"
+#                          no nome, liga hardened runtime e carimbo de tempo (notarização);
+#                          com certificado próprio, assina sem eles (a validação de
+#                          bibliotecas recusaria o Sparkle sem Team ID).
 #   BANDO_CONFIGURATION    debug | release (padrão: release)
 #   BANDO_UNIVERSAL=1      binário universal arm64 + x86_64 (precisa do Xcode completo)
 set -euo pipefail
@@ -80,7 +83,7 @@ PLIST
 
 echo "==> assinando (${IDENTITY})"
 SIGN_OPTS=(--force --sign "$IDENTITY")
-[ "$IDENTITY" != "-" ] && SIGN_OPTS+=(--options runtime --timestamp)
+case "$IDENTITY" in *"Developer ID"*) SIGN_OPTS+=(--options runtime --timestamp);; esac
 # De dentro para fora: componentes do Sparkle, framework, executáveis, app.
 for x in "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/"*.xpc \
          "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate" \

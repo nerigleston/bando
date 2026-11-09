@@ -1,20 +1,26 @@
 # Publica uma versão a partir de uma tag.
 #
-#   git tag v0.3.0 && git push --tags          → canal estável
+#   git tag v0.3.0 && git push --tags          → canal estável (vira a "latest")
 #   git tag v0.4.0-beta.1 && git push --tags   → canal beta
 #
-# Gera Bando.app universal, assina, notariza (se houver credenciais), publica
-# o Release no GitHub e atualiza appcast.xml e o catálogo assinado no GitHub
-# Pages. Os apps instalados veem a versão nova na próxima checagem (até 1 h).
+# Gera Bando.app universal, assina, publica no S3 (bucket bando-releases) e cria
+# o Release no GitHub. Os apps instalados veem a versão nova em minutos: o app
+# consulta o appcast ao voltar para a frente e a cada 15 minutos.
 #
-# Secrets do repositório:
-#   SPARKLE_ED_PRIVATE_KEY       chave privada EdDSA (generate_keys -x arquivo)
-#   DEVELOPER_ID_P12             certificado Developer ID em base64   (opcional)
-#   DEVELOPER_ID_P12_PASSWORD                                         (opcional)
-#   NOTARY_APPLE_ID, NOTARY_TEAM_ID, NOTARY_PASSWORD (senha de app)   (opcional)
-# Variáveis do repositório:
-#   SPARKLE_ED_PUBLIC_KEY        chave pública (vai no Info.plist)
-#   BANDO_PAGES_URL              ex.: https://nerigleston.github.io/bando
+# No S3:
+#   appcast.xml              lista de versões assinada (Sparkle)
+#   updates/Bando-X.zip      cada versão, e os .delta entre versões
+#   latest/Bando.zip|.dmg    sempre a última estável; latest/VERSION
+#   install.sh               instalador (curl | bash)
+#
+# Assinatura: com DEVELOPER_ID_P12, Developer ID e notarização; sem ele, o
+# certificado próprio BANDO_SIGN_P12 (identidade fixa entre versões, sem conta
+# da Apple). O Sparkle confere cada atualização pela chave EdDSA.
+#
+# Secrets: SPARKLE_ED_PRIVATE_KEY, BANDO_SIGN_P12, BANDO_SIGN_P12_PASSWORD
+#          (opcionais) DEVELOPER_ID_P12, DEVELOPER_ID_P12_PASSWORD,
+#          NOTARY_APPLE_ID, NOTARY_TEAM_ID, NOTARY_PASSWORD
+# Variáveis: SPARKLE_ED_PUBLIC_KEY, BANDO_RELEASES_URL, AWS_RELEASE_ROLE
 
 name: Release
 
@@ -24,9 +30,12 @@ on:
 
 permissions:
   contents: write
+  id-token: write   # OIDC para assumir o papel da AWS, sem chave guardada
 
 env:
   SPARKLE_VERSION: "2.10.1"
+  RELEASES_URL: ${{ vars.BANDO_RELEASES_URL }}
+  BUCKET: bando-releases
   HAS_NOTARY: ${{ secrets.NOTARY_APPLE_ID != '' }}
 
 jobs:
@@ -61,40 +70,49 @@ jobs:
           python3 -I scripts/gen-presets.py --check
           scripts/test.sh
 
-      - name: Certificado Developer ID
+      - name: Certificado de assinatura
         id: cert
         env:
-          P12: ${{ secrets.DEVELOPER_ID_P12 }}
-          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          DEV_P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          DEV_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          OWN_P12: ${{ secrets.BANDO_SIGN_P12 }}
+          OWN_P12_PASSWORD: ${{ secrets.BANDO_SIGN_P12_PASSWORD }}
         run: |
-          if [ -z "$P12" ]; then
+          if [ -n "$DEV_P12" ]; then P12="$DEV_P12"; PW="$DEV_P12_PASSWORD"; NAME="Developer ID Application"
+          elif [ -n "$OWN_P12" ]; then P12="$OWN_P12"; PW="$OWN_P12_PASSWORD"; NAME="Bando Self-Signed"
+          else
             echo "identity=-" >> "$GITHUB_OUTPUT"
-            echo "Sem certificado: assinatura ad hoc (o macOS vai avisar na primeira instalação)."
+            echo "::warning::Sem certificado: assinatura ad hoc."
             exit 0
           fi
-          KC="$RUNNER_TEMP/build.keychain"
+          KC="$RUNNER_TEMP/build.keychain-db"
           security create-keychain -p "" "$KC"
           security set-keychain-settings "$KC"
           security unlock-keychain -p "" "$KC"
           echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
-          security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$P12_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KC"
-          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
-          ID="$(security find-identity -v -p codesigning "$KC" | grep 'Developer ID Application' | head -1 | awk -F'"' '{print $2}')"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$PW" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KC" >/dev/null
+          existing=()
+          while IFS= read -r line; do existing+=("$(echo "$line" | tr -d ' "')"); done < <(security list-keychains -d user)
+          security list-keychains -d user -s "$KC" "${existing[@]}"
+          # Certificado próprio não é "confiável" para o sistema: lista sem -v.
+          ID="$(security find-identity -p codesigning "$KC" | grep "$NAME" | head -1 | awk -F'"' '{print $2}')"
+          [ -n "$ID" ] || { echo "identidade $NAME não encontrada" >&2; exit 1; }
           echo "identity=$ID" >> "$GITHUB_OUTPUT"
 
       - name: Monta Bando.app
         env:
           BANDO_VERSION: ${{ steps.v.outputs.version }}
           BANDO_BUILD: ${{ steps.v.outputs.build }}
-          BANDO_FEED_URL: ${{ vars.BANDO_PAGES_URL }}/appcast.xml
+          BANDO_FEED_URL: ${{ vars.BANDO_RELEASES_URL }}/appcast.xml
           BANDO_ED_PUBLIC_KEY: ${{ vars.SPARKLE_ED_PUBLIC_KEY }}
           BANDO_SIGN_IDENTITY: ${{ steps.cert.outputs.identity }}
           BANDO_UNIVERSAL: "1"
         run: scripts/build-app.sh
 
       - name: Notariza
-        if: steps.cert.outputs.identity != '-' && env.HAS_NOTARY == 'true'
+        if: contains(steps.cert.outputs.identity, 'Developer ID') && env.HAS_NOTARY == 'true'
         env:
           NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
           NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
@@ -118,54 +136,67 @@ jobs:
             "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
           mkdir -p sparkle && tar -xf sparkle.tar.xz -C sparkle
 
+      - name: Credenciais da AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_RELEASE_ROLE }}
+          aws-region: us-east-1
+
       - name: Appcast e catálogo assinados
         env:
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
         run: |
+          V="${{ steps.v.outputs.version }}"
           KEY="$RUNNER_TEMP/ed.key"
           printf '%s' "$SPARKLE_ED_PRIVATE_KEY" > "$KEY"
-          # Traz o appcast atual do gh-pages para acrescentar a versão nova.
-          git fetch origin gh-pages:gh-pages 2>/dev/null || true
-          mkdir -p pages
-          if git rev-parse --verify gh-pages >/dev/null 2>&1; then
-            git --work-tree=pages checkout gh-pages -- . 2>/dev/null || true
-          fi
+          # Versões anteriores (para manter no appcast e gerar os .delta).
           mkdir -p pages/updates pages/catalog
-          cp "dist/Bando-${{ steps.v.outputs.version }}.zip" pages/updates/
+          aws s3 sync "s3://$BUCKET/updates/" pages/updates/ --exclude "*.delta" --only-show-errors
+          aws s3 cp "s3://$BUCKET/appcast.xml" pages/updates/appcast.xml --only-show-errors || true
+          cp "dist/Bando-$V.zip" pages/updates/
           # Notas da versão: seção da versão no CHANGELOG.md, se existir.
           if [ -f CHANGELOG.md ]; then
-            awk "/^## \\[?${{ steps.v.outputs.version }}/{f=1;next} /^## /{f=0} f" CHANGELOG.md \
-              > "pages/updates/Bando-${{ steps.v.outputs.version }}.md"
+            awk "/^## \\[?$V/{f=1;next} /^## /{f=0} f" CHANGELOG.md > "pages/updates/Bando-$V.md"
           fi
           CHANNEL_ARGS=()
           [ -n "${{ steps.v.outputs.channel }}" ] && CHANNEL_ARGS=(--channel "${{ steps.v.outputs.channel }}")
           ./sparkle/bin/generate_appcast --ed-key-file "$KEY" \
-            --download-url-prefix "${{ vars.BANDO_PAGES_URL }}/updates/" \
-            --embed-release-notes "${CHANNEL_ARGS[@]+"${CHANNEL_ARGS[@]}"}" \
-            -o pages/appcast.xml pages/updates
+            --download-url-prefix "$RELEASES_URL/updates/" \
+            --embed-release-notes --maximum-deltas 3 "${CHANNEL_ARGS[@]+"${CHANNEL_ARGS[@]}"}" \
+            pages/updates
+          mv pages/updates/appcast.xml pages/appcast.xml
           # Catálogo de agentes e providers (seção 17.2 do plano).
           cp catalog/agents.toml catalog/providers.toml pages/catalog/
-          python3 -I scripts/catalog-manifest.py pages/catalog "$KEY" ./sparkle/bin/sign_update \
-            "${{ steps.v.outputs.version }}" > pages/catalog/catalog.json
+          python3 -I scripts/catalog-manifest.py pages/catalog "$KEY" ./sparkle/bin/sign_update "$V" \
+            > pages/catalog/catalog.json
           rm -f "$KEY"
 
-      - name: Publica no GitHub Pages
+      - name: Publica no S3
         run: |
-          cd pages
-          git init -q
-          git checkout -q -b gh-pages
-          git add -A
-          git -c user.name="bando-release" -c user.email="bando-release@users.noreply.github.com" \
-            commit -q -m "Release ${{ steps.v.outputs.version }}"
-          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" gh-pages
+          V="${{ steps.v.outputs.version }}"
+          NC="no-cache, max-age=0"
+          aws s3 sync pages/updates/ "s3://$BUCKET/updates/" --exclude "*.md" --only-show-errors
+          aws s3 cp pages/appcast.xml "s3://$BUCKET/appcast.xml" --cache-control "$NC" --content-type application/xml
+          aws s3 cp pages/catalog/ "s3://$BUCKET/catalog/" --recursive --cache-control "$NC"
+          aws s3 cp scripts/install.sh "s3://$BUCKET/install.sh" --cache-control "$NC" --content-type text/x-shellscript
+          aws s3 cp "dist/Bando-$V.zip" "s3://$BUCKET/releases/$V/Bando.zip"
+          aws s3 cp "dist/Bando-$V.dmg" "s3://$BUCKET/releases/$V/Bando.dmg"
+          if [ -z "${{ steps.v.outputs.channel }}" ]; then
+            aws s3 cp "dist/Bando-$V.zip" "s3://$BUCKET/latest/Bando.zip" --cache-control "$NC"
+            aws s3 cp "dist/Bando-$V.dmg" "s3://$BUCKET/latest/Bando.dmg" --cache-control "$NC"
+            printf '%s\n' "$V" | aws s3 cp - "s3://$BUCKET/latest/VERSION" --cache-control "$NC" --content-type text/plain
+          fi
+          echo "Publicado: $RELEASES_URL/latest/Bando.zip"
 
       - name: Release no GitHub
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          V="${{ steps.v.outputs.version }}"
           PRE=""
           [ -n "${{ steps.v.outputs.channel }}" ] && PRE="--prerelease"
-          NOTES="pages/updates/Bando-${{ steps.v.outputs.version }}.md"
-          [ -s "$NOTES" ] || echo "Versão ${{ steps.v.outputs.version }}" > "$NOTES"
+          NOTES="pages/updates/Bando-$V.md"
+          [ -s "$NOTES" ] || echo "Versão $V" > "$NOTES"
+          printf '\n\nInstalar ou atualizar:\n\n```\ncurl -fsSL %s/install.sh | bash\n```\n' "$RELEASES_URL" >> "$NOTES"
           gh release create "$GITHUB_REF_NAME" dist/* $PRE \
-            --title "Bando ${{ steps.v.outputs.version }}" --notes-file "$NOTES"
+            --title "Bando $V" --notes-file "$NOTES"

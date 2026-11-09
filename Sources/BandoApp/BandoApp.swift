@@ -128,15 +128,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 }
 
 /// Sparkle só liga quando o app roda empacotado (Info.plist com SUFeedURL).
+///
+/// Para a versão nova aparecer logo depois de publicada, além da checagem do
+/// Sparkle (a cada hora), o app consulta o appcast ao voltar para a frente e a
+/// cada 15 minutos. É um GET de poucos KB; sem versão nova, nada aparece.
 @MainActor
 final class Updater {
     let controller: SPUStandardUpdaterController?
+    private var timer: Timer?
+    private var lastCheck = Date.distantPast
+    private var observer: NSObjectProtocol?
 
     init() {
         let hasFeed = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String != nil
         controller = hasFeed
             ? SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
             : nil
+        guard controller != nil else { return }
+        observer = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkQuietly(minInterval: 5 * 60) }
+        }
+        timer = Timer.scheduledTimer(withTimeInterval: 15 * 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkQuietly(minInterval: 10 * 60) }
+        }
+        timer?.tolerance = 60
+    }
+
+    /// Checagem em segundo plano: só mostra algo se houver versão nova.
+    private func checkQuietly(minInterval: TimeInterval) {
+        guard let updater = controller?.updater, updater.canCheckForUpdates,
+              Date().timeIntervalSince(lastCheck) >= minInterval else { return }
+        lastCheck = Date()
+        updater.checkForUpdatesInBackground()
     }
 }
 

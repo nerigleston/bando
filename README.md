@@ -93,16 +93,22 @@ Os demais (Cursor, Gemini CLI, Qwen Code, Crush, Aider, Goose, Amp, Copilot CLI,
 
 Requisitos: macOS 14 ou mais recente, [tmux](https://github.com/tmux/tmux) 3.3+ (`brew install tmux`) e git.
 
-Por enquanto, a partir do código (Swift 6, Xcode ou Command Line Tools):
+```bash
+curl -fsSL https://bando-releases.s3.amazonaws.com/install.sh | bash
+```
+
+O script baixa a última versão, instala em `/Applications/Bando.app` e põe o comando `bando` em `~/.local/bin`. Daí em diante o app se atualiza sozinho: poucos minutos depois de uma versão nova sair, ele avisa e instala com um clique.
+
+Download direto: [Bando.zip](https://bando-releases.s3.amazonaws.com/latest/Bando.zip). Baixado pelo navegador, o macOS avisa que o desenvolvedor não foi identificado na primeira abertura (o app ainda não é notarizado pela Apple); libere em Ajustes do Sistema > Privacidade e Segurança > "Abrir mesmo assim". Pelo script esse aviso não aparece.
+
+A partir do código (Swift 6, Xcode ou Command Line Tools):
 
 ```bash
 git clone https://github.com/nerigleston/bando.git
 cd bando
-scripts/build-app.sh          # gera build/Bando.app
+scripts/build-app.sh          # gera build/Bando.app (sem atualização automática)
 open build/Bando.app
 ```
-
-Para usar o CLI no terminal, abra Ajustes > Geral > "Instalar em ~/.local/bin/bando".
 
 ## Primeiros passos
 
@@ -196,6 +202,8 @@ scripts/build-app.sh             # monta o .app
 scripts/bench.sh                 # mede memória e CPU
 python3 scripts/gen-presets.py   # depois de editar catalog/*.toml
 ```
+
+Para publicar uma versão: anote as mudanças no `CHANGELOG.md` e rode `git tag v0.2.0 && git push --tags`. O workflow `release.yml` monta, assina e publica no S3; os apps instalados avisam em poucos minutos. Tags com sufixo (`v0.3.0-beta.1`) vão para o canal beta.
 
 O plano e as decisões estão em [doc/PLANO.md](doc/PLANO.md). O comparativo de interface com 30 ferramentas parecidas está em [doc/pesquisa-ux.md](doc/pesquisa-ux.md).
 
