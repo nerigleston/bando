@@ -275,7 +275,8 @@ struct SessionRow: View {
                 }
             }
             Spacer(minLength: 4)
-            trailing
+            // Altura fixa: o botão ⋯ que aparece no hover não muda o tamanho da linha.
+            trailing.frame(width: 22, height: 16)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)

@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.1.6
+
+- A linha da sessão na lateral não muda mais de altura quando o mouse passa por cima.
+
 ## 0.1.5
 
 - "Geral": sessões fora de um projeto (na pasta pessoal) ficam num grupo próprio no topo da lateral, como o "General" do Xirp. Dá para abrir uma sessão nova nele pelo seletor de projeto.
