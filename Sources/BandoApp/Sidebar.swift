@@ -33,8 +33,8 @@ struct Sidebar: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {
                     switch model.sidebarMode {
-                    case .byProject: byProject
-                    case .byStatus: byStatus
+                    case .byProject: byProject; hiddenSection
+                    case .byStatus: byStatus; hiddenSection
                     case .projects: projectList
                     }
                 }
@@ -84,6 +84,37 @@ struct Sidebar: View {
                 if expandedStopped.contains(g.0.id) {
                     ForEach(stopped(of: g.0.id).prefix(30)) { SessionRow(session: $0, showProject: false) }
                 }
+            }
+        }
+        // Sessões cujo projeto foi removido do Bando (o worktree pode ainda existir).
+        let known = Set(model.projects.map(\.id))
+        let orphans = visible.filter { !known.contains($0.projectId) && !$0.pinned }
+            .sorted { $0.updatedAt > $1.updatedAt }
+        if !orphans.isEmpty {
+            GroupHeader(title: "Sem projeto", first: groups.isEmpty && pinned.isEmpty, collapsed: collapsed.contains("_orphans")) { toggle("_orphans") }
+            if !collapsed.contains("_orphans") { ForEach(orphans.prefix(50)) { SessionRow(session: $0, showProject: false) } }
+        }
+    }
+
+    /// Sessões escondidas da lateral: ficam numa linha recolhida no fim. O menu
+    /// da sessão tem "Mostrar na lateral" para trazê-las de volta.
+    @ViewBuilder var hiddenSection: some View {
+        let hidden = model.sessions.filter(\.hidden).sorted { $0.updatedAt > $1.updatedAt }
+        if !hidden.isEmpty {
+            Button { if expandedStopped.contains("_hidden") { expandedStopped.remove("_hidden") } else { expandedStopped.insert("_hidden") } } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: expandedStopped.contains("_hidden") ? "chevron.down" : "chevron.right").font(.system(size: 9, weight: .semibold))
+                    Image(systemName: "eye.slash").font(.system(size: 10))
+                    Text("\(hidden.count) oculta\(hidden.count == 1 ? "" : "s")").font(.system(size: 11.5))
+                    Spacer()
+                }
+                .foregroundStyle(p.tertiary)
+                .padding(.horizontal, 10).frame(height: 26).padding(.top, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).pointerCursor()
+            if expandedStopped.contains("_hidden") {
+                ForEach(hidden.prefix(50)) { SessionRow(session: $0).opacity(0.75) }
             }
         }
     }

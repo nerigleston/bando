@@ -72,6 +72,7 @@ if [ -n "${BANDO_FEED_URL:-}" ]; then
   FEED_KEYS="  <key>SUFeedURL</key><string>${BANDO_FEED_URL}</string>
   <key>SUPublicEDKey</key><string>${BANDO_ED_PUBLIC_KEY:?defina BANDO_ED_PUBLIC_KEY junto com BANDO_FEED_URL}</string>
   <key>SURequireSignedFeed</key><true/>
+  <key>SUVerifyUpdateBeforeExtraction</key><true/>
   <key>SUEnableAutomaticChecks</key><true/>
   <key>SUScheduledCheckInterval</key><integer>3600</integer>"
 fi

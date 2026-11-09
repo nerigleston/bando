@@ -1,5 +1,11 @@
 # Mudanças
 
+## 0.1.3
+
+- Corrige "Não foi possível buscar atualizações": faltava conferir o pacote antes de extrair, exigência do Sparkle para feed assinado. Quem tem a 0.1.1 ou a 0.1.2 precisa reinstalar uma vez (`curl -fsSL https://bando-releases.s3.amazonaws.com/install.sh | bash`); daí em diante o app se atualiza sozinho.
+- Sessões cujo projeto foi removido aparecem em "Sem projeto" na lateral.
+- Sessões escondidas ficam em "N ocultas", no fim da lateral.
+
 ## 0.1.2
 
 - Grade com mais respiro: margem no terminal, cantos arredondados e espaço entre os painéis.
