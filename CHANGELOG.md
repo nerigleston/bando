@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.1.1
+
+- Notificação do macOS quando há versão nova e o Bando não está em foco; clicar nela abre a janela de instalação.
+
 ## 0.1.0
 
 Primeira versão publicada.

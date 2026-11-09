@@ -113,6 +113,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        if response.notification.request.content.userInfo["update"] != nil {
+            await MainActor.run {
+                NSApp.activate()
+                NotificationCenter.default.post(name: Updater.showUpdate, object: nil)
+            }
+            return
+        }
         let id = response.notification.request.content.userInfo["session"] as? String
         await open(session: id)
     }
@@ -132,24 +139,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 /// Para a versão nova aparecer logo depois de publicada, além da checagem do
 /// Sparkle (a cada hora), o app consulta o appcast ao voltar para a frente e a
 /// cada 15 minutos. É um GET de poucos KB; sem versão nova, nada aparece.
+///
+/// Versão nova encontrada com o app fora de foco: o Sparkle não interrompe e o
+/// Bando manda uma notificação do macOS; clicar nela abre a janela "Instalar".
 @MainActor
-final class Updater {
-    let controller: SPUStandardUpdaterController?
+final class Updater: NSObject, SPUStandardUserDriverDelegate {
+    static let showUpdate = Notification.Name("bando.showUpdate")
+    nonisolated private static let notificationId = "bando-update"
+    private(set) var controller: SPUStandardUpdaterController?
     private var timer: Timer?
     private var lastCheck = Date.distantPast
-    private var observer: NSObjectProtocol?
+    private var observers: [NSObjectProtocol] = []
 
-    init() {
+    override init() {
+        super.init()
         let hasFeed = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String != nil
-        controller = hasFeed
-            ? SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
-            : nil
-        guard controller != nil else { return }
-        observer = NotificationCenter.default.addObserver(
+        guard hasFeed else { return }
+        controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: self)
+        observers.append(NotificationCenter.default.addObserver(forName: Self.showUpdate, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.controller?.checkForUpdates(nil) }
+        })
+        observers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.checkQuietly(minInterval: 5 * 60) }
-        }
+        })
         timer = Timer.scheduledTimer(withTimeInterval: 15 * 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.checkQuietly(minInterval: 10 * 60) }
         }
@@ -162,6 +176,38 @@ final class Updater {
               Date().timeIntervalSince(lastCheck) >= minInterval else { return }
         lastCheck = Date()
         updater.checkForUpdatesInBackground()
+    }
+
+    // MARK: Lembrete gentil (SPUStandardUserDriverDelegate)
+
+    nonisolated var supportsGentleScheduledUpdateReminders: Bool { true }
+
+    /// Com o app em foco, o Sparkle mostra a janela na hora; fora de foco, quem
+    /// avisa é a notificação abaixo.
+    nonisolated func standardUserDriverShouldHandleShowingScheduledUpdate(_ update: SUAppcastItem, andInImmediateFocus immediateFocus: Bool) -> Bool {
+        immediateFocus
+    }
+
+    nonisolated func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate: Bool, forUpdate update: SUAppcastItem, state: SPUUserUpdateState) {
+        guard !state.userInitiated, !handleShowingUpdate else { return }
+        let version = update.displayVersionString
+        Task { @MainActor in
+            NSApp.requestUserAttention(.informationalRequest)
+            let content = UNMutableNotificationContent()
+            content.title = "Bando \(version) disponível"
+            content.body = "Clique para ver as novidades e instalar. As sessões continuam rodando."
+            content.userInfo = ["update": version]
+            let request = UNNotificationRequest(identifier: Self.notificationId, content: content, trigger: nil)
+            try? await UNUserNotificationCenter.current().add(request)
+        }
+    }
+
+    nonisolated func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [Self.notificationId])
+    }
+
+    nonisolated func standardUserDriverWillFinishUpdateSession() {
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [Self.notificationId])
     }
 }
 
