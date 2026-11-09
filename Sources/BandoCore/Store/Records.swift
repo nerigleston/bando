@@ -67,6 +67,12 @@ public enum SessionStatus: String, Codable, Sendable, CaseIterable, DatabaseValu
 public struct Project: Codable, Sendable, Identifiable, Hashable, FetchableRecord, PersistableRecord {
     public static let databaseTableName = "project"
 
+    /// Pasta pessoal: sessões abertas fora de um repositório ficam no projeto
+    /// "Geral", que aponta para ela (sem worktree).
+    public static var generalPath: String { URL(fileURLWithPath: NSHomeDirectory()).standardizedFileURL.path }
+    public static let generalName = "Geral"
+    public var isGeneral: Bool { path == Project.generalPath }
+
     public var id: String
     public var name: String
     public var path: String

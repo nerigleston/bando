@@ -115,6 +115,12 @@ public final class BandoStore: Sendable {
             // Casamento de registros do Xirp com respostas do transcript.
             try db.create(index: "usage_output_at", on: "usage", columns: ["outputTokens", "at"])
         }
+        // A pasta pessoal (sessões fora de repositório, vindas do Xirp ou não)
+        // aparece como "Geral", não com o nome do usuário.
+        m.registerMigration("v4-general-project") { db in
+            try db.execute(sql: "UPDATE project SET name = ? WHERE path = ?",
+                           arguments: [Project.generalName, Project.generalPath])
+        }
         return m
     }
 

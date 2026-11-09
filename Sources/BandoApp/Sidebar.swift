@@ -72,7 +72,8 @@ struct Sidebar: View {
                 .sorted { ($0.status.urgency, $1.statusChangedAt) < ($1.status.urgency, $0.statusChangedAt) }
             return list.isEmpty && stopped(of: project.id).isEmpty ? nil : (project, list)
         }
-        .sorted { ($0.1.map(\.status.urgency).min() ?? 9, $0.0.name) < ($1.1.map(\.status.urgency).min() ?? 9, $1.0.name) }
+        .sorted { ($0.0.isGeneral ? 0 : 1, $0.1.map(\.status.urgency).min() ?? 9, $0.0.name)
+                < ($1.0.isGeneral ? 0 : 1, $1.1.map(\.status.urgency).min() ?? 9, $1.0.name) }
         ForEach(Array(groups.enumerated()), id: \.element.0.id) { i, g in
             GroupHeader(title: g.0.name, first: i == 0 && pinned.isEmpty, collapsed: collapsed.contains(g.0.id),
                         newSession: { model.openComposer(project: g.0.id) }) { toggle(g.0.id) }
@@ -127,7 +128,7 @@ struct Sidebar: View {
     /// Modo "Projetos": lista com contagem; clique abre a página do projeto.
     @ViewBuilder var projectList: some View {
         let counts = Dictionary(grouping: model.sessions, by: \.projectId).mapValues(\.count)
-        ForEach(model.projects.sorted { ($0.lastUsedAt ?? .distantPast) > ($1.lastUsedAt ?? .distantPast) }) { proj in
+        ForEach(model.projects.sorted { ($0.isGeneral ? 0 : 1, $1.lastUsedAt ?? .distantPast) < ($1.isGeneral ? 0 : 1, $0.lastUsedAt ?? .distantPast) }) { proj in
             ProjectRow(project: proj, count: counts[proj.id] ?? 0, selected: model.route == .project(proj.id)) {
                 model.openProject(proj.id)
             }
@@ -406,7 +407,8 @@ struct ProjectRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                Image(systemName: selected ? "folder.fill" : "folder").font(.system(size: 13)).foregroundStyle(p.secondary)
+                Image(systemName: project.isGeneral ? (selected ? "tray.fill" : "tray") : (selected ? "folder.fill" : "folder"))
+                    .font(.system(size: 13)).foregroundStyle(p.secondary)
                 Text(project.name).font(.system(size: 13, weight: selected ? .semibold : .regular)).lineLimit(1)
                 Spacer()
                 if count > 0 { Text("\(count)").font(.system(size: 11.5, design: .monospaced)).foregroundStyle(p.tertiary) }

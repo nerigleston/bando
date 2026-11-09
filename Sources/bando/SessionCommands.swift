@@ -309,11 +309,12 @@ struct Import: ParsableCommand {
             abstract: "Importa projetos, sessões, custos e PRs do Xirp (lê o backup JSON, não altera o Xirp).")
         @Option(name: .long, help: "Arquivo de backup (padrão: o mais recente).") var backup: String?
         @Flag(name: .long, help: "Mostra o que entraria, sem gravar.") var dryRun = false
+        @Flag(name: .customLong("so-sessoes"), help: "Importa só projetos e sessões, sem custos nem PRs.") var sessionsOnly = false
 
         func run() throws {
             let store = try BandoStore()
             let file = try backup.map { URL(fileURLWithPath: $0) } ?? XirpImporter.latestBackup()
-            let report = try XirpImporter(store: store).run(backup: file, dryRun: dryRun)
+            let report = try XirpImporter(store: store).run(backup: file, dryRun: dryRun, sessionsOnly: sessionsOnly)
             print(report)
             if dryRun { print("(simulação: nada foi gravado)") }
         }

@@ -31,7 +31,7 @@ struct Composer: View {
         VStack(alignment: .leading, spacing: 10) {
             ZStack(alignment: .topLeading) {
                 if text.isEmpty {
-                    Text(compact ? "Descreva a próxima tarefa deste projeto…" : "Descreva a tarefa ou cole o link de um ticket…")
+                    Text(compact ? (currentProject?.isGeneral == true ? "Descreva a tarefa (roda na sua pasta pessoal)…" : "Descreva a próxima tarefa deste projeto…") : "Descreva a tarefa ou cole o link de um ticket…")
                         .font(.system(size: 14)).foregroundStyle(p.tertiary)
                         .padding(.top, 1).padding(.leading, 5).allowsHitTesting(false)
                 }
@@ -77,6 +77,8 @@ struct Composer: View {
         }
     }
 
+    var currentProject: Project? { (fixedProject ?? projectId).flatMap(model.project) }
+
     var canCreate: Bool { (fixedProject ?? projectId) != nil && !creating && !agent.isEmpty }
 
     var installedAgents: [AgentAvailability] {
@@ -94,7 +96,8 @@ struct Composer: View {
     }
 
     var projectChip: some View {
-        Chip(symbol: "folder", title: projectId.flatMap(model.project)?.name ?? "Projeto") { showProjects.toggle() }
+        Chip(symbol: projectId.flatMap(model.project)?.isGeneral == true ? "tray" : "folder",
+             title: projectId.flatMap(model.project)?.name ?? "Projeto") { showProjects.toggle() }
             .popover(isPresented: $showProjects, arrowEdge: .bottom) {
                 ProjectPicker { id in projectId = id; showProjects = false }
                     .environment(model).environment(\.palette, p)
@@ -131,8 +134,10 @@ struct Composer: View {
         Form {
             Picker("Provider", selection: $provider) { ForEach(providers) { Text($0.name).tag($0.id) } }
             TextField("Modelo", text: $modelName, prompt: Text(model.config?.providers[provider]?.models.first ?? "padrão do agente"))
-            Toggle("Worktree separado", isOn: $useWorktree)
-            if useWorktree { TextField("Branch", text: $branch, prompt: Text("bando/<nome>")) }
+            if currentProject?.isGeneral != true {
+                Toggle("Worktree separado", isOn: $useWorktree)
+                if useWorktree { TextField("Branch", text: $branch, prompt: Text("bando/<nome>")) }
+            }
             Picker("Começar depois de", selection: $dependsOn) {
                 Text("Agora").tag(String?.none)
                 ForEach(model.sessions.filter { $0.status.isLive || $0.status == .queued }) { Text($0.name).tag(Optional($0.id)) }
@@ -207,7 +212,15 @@ struct ProjectPicker: View {
             TextField("Buscar projeto", text: $filter).textFieldStyle(.roundedBorder).padding(8)
             ScrollView {
                 VStack(spacing: 0) {
-                    ForEach(projects) { proj in
+                    if filter.isEmpty || Project.generalName.localizedCaseInsensitiveContains(filter) {
+                        ActionItem(symbol: "tray", title: "Geral (sem projeto)", color: p.text) {
+                            if let g = model.projects.first(where: \.isGeneral) { choose(g.id); return }
+                            guard let service = model.service, let g = try? service.generalProject() else { return }
+                            model.refreshSessions()
+                            choose(g.id)
+                        }
+                    }
+                    ForEach(projects.filter { !$0.isGeneral }) { proj in
                         ActionItem(symbol: "folder", title: proj.name, color: p.text) { choose(proj.id) }
                     }
                     ActionItem(symbol: "plus", title: "Adicionar projeto…", color: p.secondary) {
@@ -287,7 +300,7 @@ struct ProjectPage: View {
                 header
                 Composer(fixedProject: projectId, compact: true).id(projectId)
                 activeSection
-                worktreesSection
+                if project?.isGeneral != true { worktreesSection }
                 recentSection
             }
             .padding(28)
@@ -298,11 +311,17 @@ struct ProjectPage: View {
 
     var header: some View {
         HStack(spacing: 12) {
-            Image(systemName: "folder.fill").font(.system(size: 20)).foregroundStyle(StateColor.waiting)
+            Image(systemName: project?.isGeneral == true ? "tray.fill" : "folder.fill").font(.system(size: 20))
+                .foregroundStyle(project?.isGeneral == true ? p.secondary : StateColor.waiting)
             VStack(alignment: .leading, spacing: 2) {
                 Text(project?.name ?? "Projeto").font(.system(size: 20, weight: .bold))
-                Text(project?.path.replacingOccurrences(of: NSHomeDirectory(), with: "~") ?? "")
-                    .font(.system(size: 11, design: .monospaced)).foregroundStyle(p.tertiary).lineLimit(1)
+                if project?.isGeneral == true {
+                    Text("Sessões fora de um projeto. Rodam na sua pasta pessoal, sem worktree.")
+                        .font(.system(size: 12)).foregroundStyle(p.tertiary).lineLimit(1)
+                } else {
+                    Text(project?.path.replacingOccurrences(of: NSHomeDirectory(), with: "~") ?? "")
+                        .font(.system(size: 11, design: .monospaced)).foregroundStyle(p.tertiary).lineLimit(1)
+                }
             }
             Spacer()
             if let proj = project {

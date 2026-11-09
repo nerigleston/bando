@@ -1,5 +1,11 @@
 # Mudanças
 
+## 0.1.5
+
+- "Geral": sessões fora de um projeto (na pasta pessoal) ficam num grupo próprio no topo da lateral, como o "General" do Xirp. Dá para abrir uma sessão nova nele pelo seletor de projeto.
+- Pasta sem git não dá mais erro: a sessão roda direto nela, sem worktree.
+- `bando import xirp` traz as sessões do "General" do Xirp para o Geral, e `--so-sessoes` reimporta sem mexer em custos e PRs.
+
 ## 0.1.4
 
 - Primeira versão entregue pela atualização automática (sem mudança de recurso).

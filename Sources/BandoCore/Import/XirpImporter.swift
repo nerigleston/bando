@@ -49,7 +49,9 @@ public struct XirpImporter {
 
     public init(store: BandoStore) { self.store = store }
 
-    public func run(backup: URL, dryRun: Bool) throws -> Report {
+    /// `sessionsOnly`: importa projetos e sessões, sem custos nem PRs (para
+    /// reimportar sem trazer de volta custos já deduplicados).
+    public func run(backup: URL, dryRun: Bool, sessionsOnly: Bool = false) throws -> Report {
         var report = Report(backup: backup.path)
         let root = try JSONSerialization.jsonObject(with: Data(contentsOf: backup)) as? [String: Any]
         guard let tables = root?["tables"] as? [String: Any] else {
@@ -57,8 +59,8 @@ public struct XirpImporter {
         }
         let projects = tables["projects"] as? [[String: Any]] ?? []
         let sessions = tables["sessions"] as? [[String: Any]] ?? []
-        let costs = tables["cost_records"] as? [[String: Any]] ?? []
-        let prs = tables["session_pr_outcomes"] as? [[String: Any]] ?? []
+        let costs = sessionsOnly ? [] : tables["cost_records"] as? [[String: Any]] ?? []
+        let prs = sessionsOnly ? [] : tables["session_pr_outcomes"] as? [[String: Any]] ?? []
 
         // Sessões tmux do Xirp rodando agora, no servidor padrão do usuário.
         let liveXirp = Set((try? Tmux(server: "default"))?.listSessions().filter { $0.hasPrefix("xirp-") } ?? [])
@@ -96,8 +98,22 @@ public struct XirpImporter {
             var sessionMap: [String: String] = [:]
             for s in sessions {
                 guard let xid = s["id"] as? String else { continue }
-                let worktreePath = (s["worktree_path"] as? String) ?? ""
+                var worktreePath = (s["worktree_path"] as? String) ?? ""
                 var projectId = (s["project_id"] as? String).flatMap { projectMap[$0] }
+                if projectId == nil, s["project_id"] as? String == nil,
+                   worktreePath.isEmpty || repositoryRoot(worktreePath) == nil {
+                    // Sessão do "General" do Xirp (fora de projeto): vai para o
+                    // "Geral" do Bando e roda na pasta pessoal.
+                    if worktreePath.isEmpty { worktreePath = Project.generalPath }
+                    if let existing = try Project.filter(Column("path") == Project.generalPath).fetchOne(db) {
+                        projectId = existing.id
+                    } else {
+                        let general = Project(name: Project.generalName, path: Project.generalPath)
+                        try general.insert(db)
+                        projectId = general.id
+                        report.projectsNew += 1
+                    }
+                }
                 if projectId == nil {
                     // Projeto apagado no Xirp: recria a partir da pasta da sessão.
                     guard let path = repositoryRoot(worktreePath) else {
@@ -143,7 +159,7 @@ public struct XirpImporter {
                         agent: agent, provider: nil,
                         model: (s["model"] as? String) ?? (s["requested_model"] as? String),
                         worktreePath: worktree, branch: s["branch"] as? String, baseBranch: nil,
-                        usesWorktree: true,
+                        usesWorktree: worktree != Project.generalPath,
                         // Sessões vivas continuam no tmux do Xirp; as outras, se
                         // retomadas, sobem no servidor do Bando.
                         tmuxName: live ? tmuxName : "bando_\(xid.prefix(8))",

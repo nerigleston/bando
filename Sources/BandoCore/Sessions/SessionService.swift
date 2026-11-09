@@ -29,10 +29,16 @@ public final class SessionService: @unchecked Sendable {
         }) {
             return existing
         }
-        let project = Project(name: URL(fileURLWithPath: root).lastPathComponent, path: root)
+        let name = root == Project.generalPath ? Project.generalName : URL(fileURLWithPath: root).lastPathComponent
+        let project = Project(name: name, path: root)
         try store.pool.write { db in try project.insert(db) }
         ChangeNotifier.post()
         return project
+    }
+
+    /// Projeto "Geral" (pasta pessoal), criado na primeira vez.
+    public func generalProject() throws -> Project {
+        try ensureProject(at: Project.generalPath)
     }
 
     public func findProject(_ ref: String) throws -> Project {
@@ -90,11 +96,11 @@ public final class SessionService: @unchecked Sendable {
         var worktree = req.project.path
         var branch: String? = nil
         var base: String? = nil
-        if req.useWorktree {
+        // Pasta sem git (como o "Geral"): a sessão roda direto nela, sem worktree.
+        let isRepo = (try? Git())?.repositoryRoot(of: req.project.path) != nil
+        let useWorktree = req.useWorktree && isRepo
+        if useWorktree {
             let git = try Git()
-            guard git.repositoryRoot(of: req.project.path) != nil else {
-                throw BandoError.notGitRepository(req.project.path)
-            }
             branch = req.branch ?? "bando/\(slug)"
             base = req.baseBranch ?? req.project.baseBranch ?? git.currentBranch(req.project.path)
             let root = req.project.worktreeRoot.map { URL(fileURLWithPath: $0) }
@@ -107,7 +113,7 @@ public final class SessionService: @unchecked Sendable {
         let session = Session(
             id: id, projectId: req.project.id, name: baseName, prompt: req.prompt,
             agent: agent.id, provider: req.provider, model: req.model,
-            worktreePath: worktree, branch: branch, baseBranch: base, usesWorktree: req.useWorktree,
+            worktreePath: worktree, branch: branch, baseBranch: base, usesWorktree: useWorktree,
             tmuxName: "bando_\(String(id.prefix(8)))",
             status: waiting ? .queued : .starting, dependsOn: parent?.id
         )
