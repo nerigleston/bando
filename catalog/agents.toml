@@ -1,0 +1,518 @@
+# Catálogo de agentes do Bando.
+#
+# Fonte única: o binário embute este arquivo (scripts/gen-presets.py) e o
+# catálogo remoto assinado é publicado a partir dele. Personalizações do
+# usuário ficam em ~/.config/bando/agents.toml e vencem estas entradas.
+#
+# Campo extra do Bando além dos da pesquisa: fresh = argumentos usados só ao
+# abrir sessão nova (não em resume/continue).
+
+# Mapeamento de CLIs de agentes de código para o Bando
+# Pesquisado em 09/11/2026 (docs oficiais, READMEs, código-fonte no GitHub, --help local quando instalado).
+#
+# Convenções deste arquivo:
+# - Ordem do argv no Bando: cmd, args, args do provider, model, resume|continue, prompt.
+#   Por isso subcomandos fixos (goose session, kiro-cli chat, acli rovodev run) vão em `args`.
+# - status = "hooks" quando o agente tem evento de fim de turno documentado. O comentário diz
+#   se também há evento de permissão ("waiting"). Sem permissão, o Bando só sabe "terminou".
+# - status = "silence" quando não há hooks nem textos de tela confirmados em doc/código.
+# - Campos sem fonte confiável foram omitidos.
+
+# ---------------------------------------------------------------------------
+# Já conferidos localmente (09/11/2026): sem mudança nas flags.
+# ---------------------------------------------------------------------------
+
+# Fonte: claude --help (2.1.319) | verificado: sim
+# Hooks: ~/.claude/settings.json e .claude/settings(.local).json; Stop, Notification, PermissionRequest
+# Providers: login próprio; ANTHROPIC_API_KEY; ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN (OpenRouter, z.ai etc.); Bedrock/Vertex por env
+[agents.claude]
+name     = "Claude Code"
+cmd      = "claude"
+assign_id = ["--session-id", "{new_id}"]
+mcp       = "claude"
+fork      = ["--resume", "{native_id}", "--fork-session"]
+# Perguntas que os hooks não avisam (confiança na pasta de cada worktree novo).
+waiting  = 'trust this folder|Do you trust the files'
+idle_after = 2
+prompt   = ["{prompt}"]
+resume   = ["--resume", "{native_id}"]
+continue = ["--continue"]
+model    = ["--model", "{model}"]
+status   = "hooks"
+hooks    = "claude"
+install  = "curl -fsSL https://claude.ai/install.sh | bash"
+
+# Fonte: codex --help (0.163.0) | verificado: sim
+# Hooks: já implementado no Bando como "codex"
+# Providers: login ChatGPT; OPENAI_API_KEY; model_providers em ~/.codex/config.toml
+# Atenção: o Bando monta `codex --model X resume <id>`. A flag -m também existe em `codex resume`;
+# conferir se o -m antes do subcomando é aplicado ao resume.
+[agents.codex]
+name     = "Codex"
+mcp      = "codex"
+cmd      = "codex"
+prompt   = ["{prompt}"]
+resume   = ["resume", "{native_id}"]
+continue = ["resume", "--last"]
+model    = ["--model", "{model}"]
+status   = "hooks"
+hooks    = "codex"
+# Observado no Codex 0.163 (09/11/2026): pergunta de confiança e menus de escolha.
+waiting  = 'Trust this folder\?|enter continue · esc|enter confirm · esc|Update available'
+install  = "curl -fsSL https://chatgpt.com/codex/install.sh | sh"
+
+# Fonte: gemini --help (0.64.0; npm latest 0.67.0) | verificado: sim
+# Hooks: já implementado no Bando como "gemini"
+# Providers: login Google; GEMINI_API_KEY; Vertex (GOOGLE_API_KEY/GOOGLE_CLOUD_PROJECT)
+# Atenção: o --help só cita "latest" ou índice numérico em --resume; confirmar que aceita UUID.
+# Google anunciou em 05/2026 a transição do Gemini CLI para o Antigravity CLI (agy).
+[agents.gemini]
+name     = "Gemini CLI"
+cmd      = "gemini"
+prompt   = ["--prompt-interactive", "{prompt}"]
+resume   = ["--resume", "{native_id}"]
+continue = ["--resume", "latest"]
+model    = ["--model", "{model}"]
+status   = "hooks"
+hooks    = "gemini"
+# Observado no Gemini CLI 0.64 (09/11/2026): pergunta de confiança e tela de login.
+# Desde 2026 o Google não aceita mais o Gemini CLI com conta pessoal no Code
+# Assist (pede migrar para o Antigravity): use chave de API ou Vertex AI.
+# Sem MCP pelo Bando: as settings de sistema que o Gemini aceitaria por
+# variável exigem arquivo e pasta do root.
+waiting  = 'Do you trust the files in this folder\?|\(Use Enter to select\)|\(y/n\)'
+install  = "npm i -g @google/gemini-cli"
+
+# Fonte: agy --help (1.5.3) + https://antigravity.google/docs/hooks?tab=cli | verificado: sim
+# Hooks: .agents/hooks.json (workspace) e ~/.gemini/config/hooks.json (global; ~/.gemini/antigravity-cli/settings.json NÃO é lido);
+#        eventos SessionStart, PreToolUse, PostToolUse, PreInvocation, PostInvocation, Stop. Sem evento de permissão.
+#        Relatos de hooks carregados que nunca disparam nas versões 1.2.1/1.2.2. Mantido em "output" por isso.
+# Providers: login Google
+[agents.agy]
+name       = "Antigravity"
+cmd        = "agy"
+prompt     = ["--prompt-interactive", "{prompt}"]
+resume     = ["--conversation", "{native_id}"]
+continue   = ["--continue"]
+model      = ["--model", "{model}"]
+status     = "output"
+# Observado no agy 1.5.3 (09/11/2026): pergunta de confiança e menus de escolha
+# terminam com "↑/↓ Navigate · enter Confirm".
+waiting    = 'Do you trust the contents|↑/↓ Navigate · enter Confirm|\(y/n\)'
+idle_after = 4
+
+# Fonte: opencode --help (v2.2.6) + https://opencode.ai/docs/build/plugins.md | verificado: sim (flags)
+# Hooks: v2 tem plugins TS em .opencode/plugins/ com API de permissões e eventos, mas não achei um evento
+#        simples de "turno terminou" documentado. O servidor local também expõe API (opencode api/serve).
+# Providers: `opencode auth`; opencode.json(c) "provider"; variáveis *_API_KEY de cada provider
+# Atenção: o pacote npm opencode-ai está em 1.19.5 (v1, flags diferentes, tinha --model). Instalar pelo script.
+[agents.opencode]
+name     = "OpenCode"
+mcp      = "opencode"
+cmd      = "opencode"
+prompt   = ["--prompt", "{prompt}"]
+resume   = ["--session", "{native_id}"]
+continue = ["--continue"]
+status   = "silence"
+install  = "curl -fsSL https://opencode.ai/install | bash"
+
+# Fonte: https://cursor.com/docs/cli/using + /docs/cli/reference/parameters + /docs/agent/hooks | verificado: sim
+# Hooks: ~/.cursor/hooks.json e .cursor/hooks.json; evento `stop` (status completed|aborted|error),
+#        beforeShellExecution/preToolUse podem pedir confirmação, mas não há evento "esperando permissão".
+#        Cursor também carrega hooks de terceiros (Claude Code) se habilitado.
+# Providers: só conta Cursor; --model escolhe entre os modelos da conta (`agent models`)
+# Atenção: --resume [chatId] tem valor opcional; se der problema, usar "--resume={native_id}".
+[agents.cursor]
+name     = "Cursor"
+cmd      = "agent"
+prompt   = ["{prompt}"]
+resume   = ["--resume", "{native_id}"]
+continue = ["--continue"]
+model    = ["--model", "{model}"]
+status   = "hooks"
+hooks    = "cursor"
+install  = "curl https://cursor.com/install -fsS | bash"
+
+# Fonte: https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/cli.md + extensions.md | verificado: sim
+# Hooks: extensões TS em ~/.pi/agent/extensions/*.ts ou .pi/extensions/ (projeto precisa ser confiável);
+#        eventos agent_end/turn_end (fim) e ui_prompt_start/ui_prompt_end ("waiting for user" de diálogos).
+#        O Pi não tem prompts de permissão próprios por padrão.
+# Providers: /login dentro do Pi; `pi auth login <provider>`; --provider, --api-key; models-configuration.md para custom
+# Mensagens posicionais com stdin/stdout em TTY abrem o TUI (não saem). --print força one-shot.
+[agents.pi]
+name     = "Pi"
+cmd      = "pi"
+prompt   = ["{prompt}"]
+resume   = ["--session", "{native_id}"]
+continue = ["--continue"]
+model    = ["--model", "{model}"]
+status   = "hooks"
+hooks    = "pi"
+install  = "curl -fsSL https://pi.dev/install.sh | sh"
+
+# ---------------------------------------------------------------------------
+# Novos
+# ---------------------------------------------------------------------------
+
+# Fonte: https://github.com/QwenLM/qwen-code (packages/cli/src/config/top-level-options.ts, docs/users/features/hooks.md) | verificado: sim
+# Hooks: ~/.qwen/settings.json ou .qwen/settings.json ("hooks"); Stop, StopFailure, Notification
+#        (permission_prompt, idle_prompt), PermissionRequest. Hooks de projeto só rodam após aprovação ou folder trust.
+# Providers: /auth (Qwen account); modelProviders em settings.json com envKey (OPENAI_API_KEY, DASHSCOPE_API_KEY,
+#            ANTHROPIC/gemini/vertex); flags --auth-type, --openai-api-key, --openai-base-url
+[agents.qwen]
+name     = "Qwen Code"
+cmd      = "qwen"
+prompt   = ["--prompt-interactive", "{prompt}"]
+resume   = ["--resume", "{native_id}"]
+continue = ["--continue"]
+model    = ["--model", "{model}"]
+status   = "hooks"
+hooks    = "qwen"
+install  = "npm install -g @qwen-code/qwen-code@latest"
+
+# Fonte: https://github.com/charmbracelet/crush (internal/cmd/root.go, docs/hooks/README.md) | verificado: sim
+# Hooks: crushrc/.crushrc (global ~/.config/crush/crushrc ou projeto) com `hook add <Evento> --command ...`;
+#        TurnStart, TurnEnd, Interrupt, StopFailure, PermissionRequest, PermissionResult. Payload JSON compatível
+#        com Claude (hook_event_name). Comando relativo resolve contra o cwd, não contra o arquivo.
+# Providers: Hyper (padrão); ANTHROPIC_API_KEY, OPENAI_API_KEY etc.; `provider add ... --type responses|completions|messages`
+#            no crushrc; crush.json "providers" (deprecado)
+# Sem prompt inicial interativo (`crush run` é headless) e sem flag de modelo (picker ctrl+l).
+[agents.crush]
+name       = "Crush"
+cmd        = "crush"
+prompt_via = "keys"
+resume     = ["--session", "{native_id}"]
+continue   = ["--continue"]
+status     = "hooks"
+hooks      = "crush"
+install    = "brew install charmbracelet/tap/crush"
+
+# Fonte: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference + hooks-configuration | verificado: sim
+# Hooks: ~/.copilot/hooks/*.json, ~/.copilot/settings.json ("hooks"), .github/hooks/*.json, .github/copilot/settings(.local).json;
+#        agentStop (fim de turno), notification (agent completion/idle, permission prompts), permissionRequest.
+#        Também lê .claude/settings.json e .claude/settings.local.json do repositório.
+# Providers: assinatura Copilot (COPILOT_GITHUB_TOKEN); BYOK por COPILOT_PROVIDERS_CONFIG, COPILOT_PROVIDER_API_KEY(_COMMAND),
+#            COPILOT_PROVIDER_HEADERS; COPILOT_MODEL
+# --resume tem valor opcional: usar a forma com "=".
+[agents.copilot]
+name     = "GitHub Copilot CLI"
+cmd      = "copilot"
+prompt   = ["-i", "{prompt}"]
+resume   = ["--resume={native_id}"]
+continue = ["--continue"]
+model    = ["--model", "{model}"]
+status   = "hooks"
+hooks    = "copilot"
+install  = "brew install copilot-cli"
+
+# Fonte: https://docs.factory.com/reference/cli-reference + /reference/hooks-reference | verificado: sim
+# Hooks: ~/.factory/hooks.json e .factory/hooks.json (ou "hooks" em settings.json); Stop, Notification
+#        (permission_prompt, idle_prompt, elicitation_dialog), SessionStart/End etc. Cancelamento gera Notification, não Stop.
+# Providers: conta Factory; BYOK em "Custom Models" (docs/model-independence/byok)
+# -m/--model aparece na tabela geral, mas o único exemplo é `droid exec`; não confirmado no modo interativo (omitido).
+[agents.droid]
+name     = "Factory Droid"
+cmd      = "droid"
+prompt   = ["{prompt}"]
+resume   = ["--resume", "{native_id}"]
+continue = ["--resume"]
+status   = "hooks"
+hooks    = "droid"
+install  = "curl -fsSL https://app.factory.ai/cli | sh"
+
+# Fonte: https://ampcode.com/docs/cli, /docs/threads, /docs/cli/settings, /docs/plugin-api | verificado: parcial
+# Hooks: plugins TS (executados com Bun) em ~/.config/amp/plugins/ ou .amp/plugins/; amp.on('agent.start'|'agent.end'|
+#        'tool.call'|'tool.result'|'session.start'). Sem evento de permissão. amp.notifications.enabled só toca som/bell.
+# Providers: só conta Amp (modelos roteados pelo Amp; modo Claude Code usa assinatura Claude vinculada)
+# Prompt inicial só por stdin (`echo x | amp`) ou digitado; --mode/--features só documentados com -x (execute).
+# Não achei forma documentada de "continuar a última thread".
+[agents.amp]
+name       = "Amp"
+cmd        = "amp"
+prompt_via = "keys"
+resume     = ["threads", "continue", "{native_id}"]
+status     = "hooks"
+hooks      = "amp"
+install    = "curl -fsSL https://ampcode.com/install.sh | bash"
+
+# Fonte: https://github.com/MoonshotAI/kimi-code docs/en/reference/kimi-command.md + customization/hooks.md | verificado: sim
+# Hooks: SÓ em ~/.kimi-code/config.toml ([[hooks]]) e plugins locais; não existe hook de projeto.
+#        Stop, StopFailure, Interrupt, PermissionRequest, PermissionResult, TurnStarted, Notification (tarefas de fundo).
+# Providers: [providers.<nome>] em config.toml, type kimi|anthropic|openai|openai-responses, api_key ou api_key_env
+#            (KIMI_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY). --model recebe um alias do config.
+# Kimi CLI (Python, `kimi-cli`) foi arquivado; este é o sucessor Kimi Code (mesmo binário `kimi`).
+# Sem prompt inicial interativo (-p/--prompt é não interativo).
+[agents.kimi]
+name       = "Kimi Code"
+cmd        = "kimi"
+prompt_via = "keys"
+resume     = ["--session", "{native_id}"]
+continue   = ["--continue"]
+model      = ["--model", "{model}"]
+status     = "hooks"
+hooks      = "kimi"
+install    = "curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash"
+
+# Fonte: https://kilo.ai/docs/code-with-ai/platforms/cli + Kilo-Org/kilocode packages/opencode/src/cli/cmd/tui.ts | verificado: sim (flags)
+# Hooks: fork do OpenCode com sistema de plugins; nenhum evento de fim de turno documentado na página da CLI.
+#        ~/.config/kilo/tui.jsonc tem "notifications" (só alerta visual/sonoro).
+# Providers: `kilo auth`; Kilo Gateway (500+ modelos); kilo.jsonc; --model provider/model
+# Doc: --continue "não pode ser usado com prompt". Evitar continuar + prompt no Bando.
+[agents.kilo]
+name     = "Kilo Code"
+cmd      = "kilo"
+prompt   = ["--prompt", "{prompt}"]
+resume   = ["--session", "{native_id}"]
+continue = ["--continue"]
+model    = ["--model", "{model}"]
+status   = "silence"
+install  = "npm install -g @kilocode/cli"
+
+# Fonte: https://docs.cline.bot/cli/cli-reference.md + https://unpkg.com/cline@latest/README.md (3.0.74) + docs.cline.bot/sdk/plugins.md | verificado: sim (flags), parcial (hooks)
+# Hooks: plugins TS (~/.cline ou projeto) com beforeRun/afterRun/beforeTool/afterTool/onEvent; --hooks-dir (padrão
+#        ~/.cline/hooks) ou CLINE_HOOKS_DIR para hooks de script, mas a lista de eventos atual não está documentada.
+#        Sem evento de permissão confirmado.
+# Providers: `cline auth <provider>`; -P/--provider, -k/--key, -m/--model; OAuth cline/openai-codex/oca
+# ARMADILHA: `cline "prompt"` sem -i roda UM turno, com auto-approve ligado por padrão, e sai. Por isso -i fica em args.
+# Sem --continue na versão 3.x (só --id).
+[agents.cline]
+name     = "Cline"
+cmd      = "cline"
+args     = ["-i"]
+prompt   = ["{prompt}"]
+resume   = ["--id", "{native_id}"]
+model    = ["--model", "{model}"]
+status   = "hooks"
+hooks    = "cline"
+install  = "npm install -g cline"
+
+# Fonte: continuedev/continue extensions/cli/src/index.ts + shared-options.ts + README | verificado: sim
+# Hooks: nenhum encontrado.
+# Providers: config.yaml do Continue (--config <path>) ou Continue Hub (--org); --model recebe slug do Hub
+# Prompt posicional abre o TUI com a mensagem; -p/--print é headless. --resume retoma a última sessão
+# DESTE terminal; não há resume por ID (só --fork <id>, que cria sessão nova).
+[agents.cn]
+name     = "Continue CLI"
+cmd      = "cn"
+prompt   = ["{prompt}"]
+continue = ["--resume"]
+model    = ["--model", "{model}"]
+status   = "silence"
+install  = "npm i -g @continuedev/cli"
+
+# Fonte: https://aider.chat/docs/config/options.html + aider/io.py, aider/waiting.py | verificado: sim
+# Hooks: não tem; mas --notifications-command "<cmd>" roda um comando quando a resposta fica pronta (fim de turno).
+#        Dá para usar como hook de "terminou" via args. Não avisa permissão.
+# Providers: --api-key provider=KEY, --openai-api-base, --set-env, AIDER_* env, .aider.conf.yml; LiteLLM por baixo
+# --message/-m roda um turno e sai; argumentos posicionais são arquivos. Último release no PyPI: 0.86.2 (12/02/2026).
+[agents.aider]
+name       = "Aider"
+cmd        = "aider"
+prompt_via = "keys"
+continue   = ["--restore-chat-history"]
+model      = ["--model", "{model}"]
+status     = "output"
+busy       = 'Waiting for'
+waiting    = '\(Y\)es/\(N\)o'
+idle_after = 4
+install    = "python -m pip install aider-install && aider-install"
+
+# Fonte: https://github.com/block/goose documentation/docs/guides/goose-cli-commands.md + crates/goose-cli/src/cli.rs
+#        + https://goose-docs.ai/docs/guides/context-engineering/hooks/ | verificado: sim
+# Hooks: plugins com hooks/hooks.json em ~/.agents/plugins/<nome>/ ou <projeto>/.agents/plugins/<nome>/;
+#        Stop, SessionStart/End, UserPromptSubmit, PreToolUse... Sem Notification nem PermissionRequest.
+# Providers: GOOSE_PROVIDER/GOOSE_MODEL, `goose configure`, --provider/--model em session e run
+# `goose session` não aceita prompt inicial; `goose run -s -t "<prompt>"` continua interativo, mas é outro subcomando.
+# Repositório migrou para aaif-goose/goose.
+[agents.goose]
+name       = "Goose"
+cmd        = "goose"
+args       = ["session"]
+prompt_via = "keys"
+resume     = ["--resume", "--session-id", "{native_id}"]
+continue   = ["--resume"]
+model      = ["--model", "{model}"]
+status     = "hooks"
+hooks      = "goose"
+install    = "brew install block-goose-cli"
+
+# Fonte: https://docs.augmentcode.com/cli/reference + /cli/hooks | verificado: sim
+# Hooks: ~/.augment/settings.json, .augment/settings.json, .augment/settings.local.json, /etc/augment/settings.json;
+#        Stop (fim, inclusive interrupção), Notification (info/warning/error), PromptSubmit, Pre/PostToolUse.
+#        Sem evento de permissão (PreToolUse só nega).
+# Providers: só conta Augment; --model "name[:effort]"
+# Resume por ID não documentado: --resume abre seletor, --session recebe caminho de arquivo.
+[agents.auggie]
+name     = "Augment (Auggie)"
+cmd      = "auggie"
+prompt   = ["{prompt}"]
+continue = ["--continue"]
+model    = ["--model", "{model}"]
+status   = "hooks"
+hooks    = "auggie"
+install  = "npm install -g @augmentcode/auggie"
+
+# Fonte: https://kiro.dev/docs/reference/cli-commands/ + https://kiro.dev/docs/hooks/ | verificado: sim
+# Hooks: .kiro/hooks/<id>.json (projeto) e ~/.kiro/hooks/ (global, só harness V3); trigger "Stop", PreToolUse,
+#        PostToolUse, gatilhos de arquivo. Sem evento de permissão encontrado.
+# Providers: conta Kiro/AWS (Builder ID ou IAM Identity Center); --model sobrescreve chat.defaultModel
+# Sucessor do Amazon Q Developer CLI. V2 e V3 têm formatos de hook diferentes.
+[agents.kiro]
+name     = "Kiro CLI"
+cmd      = "kiro-cli"
+args     = ["chat"]
+prompt   = ["{prompt}"]
+resume   = ["--resume-id", "{native_id}"]
+continue = ["--resume"]
+model    = ["--model", "{model}"]
+status   = "hooks"
+hooks    = "kiro"
+install  = "curl -fsSL https://cli.kiro.dev/install | bash"
+
+# Fonte: https://support.atlassian.com/rovo/docs/rovo-dev-cli-commands/ + blog "Streamlining your Rovo Dev CLI workflow with event hooks" | verificado: parcial
+# Hooks: configurados por /hooks, gravados em "eventHooks" de ~/.rovodev/config.yml. Evento confirmado: on_tool_permission.
+#        O blog cita também "terminou de gerar resposta" e "erro", mas sem o nome exato do evento.
+# Providers: só conta Atlassian (acli rovodev auth login)
+# `acli rovodev run "<instrução>"` é NÃO interativo; por isso keys.
+[agents.rovodev]
+name       = "Rovo Dev"
+cmd        = "acli"
+args       = ["rovodev", "run"]
+prompt_via = "keys"
+resume     = ["--restore", "{native_id}"]
+continue   = ["--restore"]
+status     = "hooks"
+hooks      = "rovodev"
+install    = "brew tap atlassian/homebrew-acli && brew install acli"
+
+# Fonte: https://github.com/mistralai/mistral-vibe README (3.1.0, 04/11/2026) | verificado: sim
+# Hooks: ~/.vibe/hooks.toml e <projeto>/.vibe/hooks.toml ([[hooks]], type = pre_tool | post_tool | post_agent).
+#        post_agent = fim de turno sem tool calls pendentes. pre_tool roda ANTES do prompt de permissão, então não indica espera.
+# Providers: MISTRAL_API_KEY; [providers] em ~/.vibe/config.toml com api_key_env / api_key_env_var
+# --model ALIAS só está documentado no modo programático (-p) e para sessão nova; omitido.
+# --continue usa a "chave do terminal" (VIBE_TERMINAL_KEY); em panes novos do tmux cai na sessão mais recente da pasta.
+[agents.vibe]
+name     = "Mistral Vibe"
+cmd      = "vibe"
+prompt   = ["{prompt}"]
+resume   = ["--resume", "{native_id}"]
+continue = ["--continue"]
+status   = "hooks"
+hooks    = "vibe"
+install  = "curl -LsSf https://mistral.ai/vibe/install.sh | bash"
+
+# Fonte: https://docs.letta.com/platform/cli/reference/index.md + letta-ai/letta-code src/hooks/types.ts, loader.ts | verificado: sim
+# Hooks (compatíveis com Claude Code): ~/.letta/settings.json, .letta/settings.json, .letta/settings.local.json;
+#          Stop, Notification, PermissionRequest, UserPromptSubmit, SessionStart/End...
+# Providers: Letta Cloud ou servidor Letta; --model sonnet|auto|gpt-5-codex...; doc avisa que --model é instável ao retomar
+# ARMADILHA: `letta` sem flags RETOMA a conversa padrão do agente. Para sessões paralelas a doc manda usar --new.
+#            Com a ordem de argv do Bando não dá para pôr --new só no modo "novo"; avaliar suporte.
+[agents.letta]
+name       = "Letta Code"
+cmd        = "letta"
+fresh      = ["--new"]       # sem --new, letta retoma a conversa padrão do agente
+prompt_via = "keys"
+resume     = ["--conversation", "{native_id}"]
+model      = ["--model", "{model}"]
+status     = "hooks"
+hooks      = "letta"
+install    = "npm install -g @letta-ai/letta-code"
+
+# Fonte: https://docs.x.ai/build/cli/reference.md + /build/features/hooks.md | verificado: sim
+# Hooks: ~/.grok/hooks/*.json e <projeto>/.grok/hooks/*.json (projeto exige /hooks-trust ou --trust); também lê
+#        .claude/settings.json e .cursor/hooks.json. Stop, StopFailure, Notification, PermissionDenied (não há PermissionRequest).
+#        TOML: [[hooks.<Evento>]] em ~/.grok/config.toml.
+# Providers: assinatura SuperGrok/X Premium+ ou chave de API xAI; ~/.grok/config.toml
+# Prompt inicial interativo não documentado (-p é headless).
+# ARMADILHA: o grok-cli comunitário (superagent-ai) instala o mesmo binário `grok`.
+[agents.grok]
+name       = "Grok Build"
+cmd        = "grok"
+prompt_via = "keys"
+resume     = ["--resume", "{native_id}"]
+continue   = ["--continue"]
+model      = ["--model", "{model}"]
+status     = "hooks"
+hooks      = "grok"
+install    = "curl -fsSL https://x.ai/cli/install.sh | bash"
+
+# Fonte: https://junie.jetbrains.com/docs/parameters.html | verificado: sim (flags), parcial (install)
+# Hooks: não encontrados na doc oficial.
+# Providers: JUNIE_API_KEY (conta JetBrains) ou BYOK com --provider e --anthropic-api-key/--openai-api-key/
+#            --google-api-key/--grok-api-key/--openrouter-api-key/--litellm-url
+# --prompt abre o TUI e envia o prompt (sessão continua interativa); --task/posicional é outra coisa.
+[agents.junie]
+name     = "Junie"
+cmd      = "junie"
+prompt   = ["--prompt", "{prompt}"]
+resume   = ["--session-id", "{native_id}"]
+continue = ["--resume"]
+model    = ["--model", "{model}"]
+status   = "silence"
+install  = "curl -fsSL https://junie.jetbrains.com/install.sh | bash"
+
+# Fonte: https://docs.openhands.dev/openhands/usage/cli/command-reference + OpenHands-CLI README | verificado: sim
+# Hooks: não encontrados.
+# Providers: ~/.openhands/ (configurado no primeiro uso); LLM_API_KEY, LLM_MODEL, LLM_BASE_URL só valem com --override-with-envs
+# Sem flag de modelo. -t/--task semeia a conversa e continua interativo (headless só com --headless).
+# AVISO: o projeto diz "no longer actively maintained" e recomenda o Agent Canvas.
+[agents.openhands]
+name     = "OpenHands CLI"
+cmd      = "openhands"
+prompt   = ["--task", "{prompt}"]
+resume   = ["--resume", "{native_id}"]
+continue = ["--resume", "--last"]
+status   = "silence"
+install  = "uv tool install openhands --python 3.12"
+
+# Fonte: https://github.com/antinomyhq/forge README | verificado: sim
+# Hooks: não encontrados.
+# Providers: `forge provider login`; troca de modelo com :model dentro da sessão (sem flag)
+# -p/--prompt é one-shot. Não há "continuar última".
+# ARMADILHA: conflita com o `forge` do Foundry (nesta máquina: ~/.foundry/bin/forge).
+# Desativado por padrão: o binário "forge" do Foundry (Ethereum) tem o mesmo
+# nome e faria o Bando achar que o Forge Code está instalado. Para usar:
+#   [agents.forge]
+#   enabled = true
+[agents.forge]
+name       = "Forge Code"
+cmd        = "forge"
+enabled    = false
+prompt_via = "keys"
+resume     = ["--conversation-id", "{native_id}"]
+status     = "silence"
+install    = "curl -fsSL https://forgecode.dev/cli | sh"
+
+# Fonte: https://github.com/CodebuffAI/codebuff README (agora "Freebuff") | verificado: parcial
+# Hooks: não encontrados. Providers: catálogo próprio, sem chave (financiado por anúncios em texto).
+# Nenhuma flag documentada no README; só o binário e a instalação.
+[agents.freebuff]
+name       = "Freebuff (ex-Codebuff)"
+cmd        = "freebuff"
+prompt_via = "keys"
+status     = "silence"
+install    = "npm install -g freebuff"
+
+# ---------------------------------------------------------------------------
+# Pesquisados e descartados
+# ---------------------------------------------------------------------------
+# - iFlow CLI: encerrado em 17/04/2026 (aviso no README do iflow-ai/iflow-cli).
+# - Kimi CLI (Python, MoonshotAI/kimi-cli): arquivado; substituído pelo Kimi Code (mapeado acima como `kimi`).
+# - Plandex: último push em 03/10/2025; Plandex Cloud encerrado; exige servidor próprio. REPL sem sessão por ID.
+# - Warp: o agente roda dentro do app Warp; o `oz` CLI é "legacy" e voltado a execução headless/nuvem (oz agent run/run-cloud).
+# - Trae: `traecli` oficial é só para TRAE Enterprise; o trae-agent open source (`trae-cli interactive`) é projeto de
+#   pesquisa sem push desde 05/02/2026.
+# - Google Jules (`jules`): tarefas assíncronas na nuvem, não roda o agente no terminal local.
+# - grok-cli comunitário (superagent-ai): tem hooks compatíveis com Claude (~/.grok/user-settings.json) e
+#   `grok -s <id>` / `--session latest`, mas usa o mesmo binário `grok` do Grok Build oficial. Preferido o oficial.
+# - Qodo Command (`qodo`): foco em agentes declarativos/webhook; flags interativas de sessão não confirmadas na doc.
+# - Hermes Agent (Nous Research): assistente geral (mensageria, automações), não CLI de código; fontes oficiais não conferidas.
+# - Roo Code: não achei CLI publicada (pacote npm @roo-code/cli inexistente).
+# - Oh My Pi (`omp`): fork do Pi citado em comparativos; não pesquisado a fundo.
+
+# Shell comum, para sessões sem agente.
+[agents.shell]
+name    = "Terminal"
+cmd     = "$SHELL"
+status  = "none"
+version = []

@@ -1,0 +1,12 @@
+.build/
+build/
+.swiftpm/
+*.xcodeproj
+xcuserdata/
+DerivedData/
+.DS_Store
+# Referência interna sobre um app proprietário: não publicar.
+doc/xirp/
+# Chaves de assinatura nunca entram no repositório.
+*.p12
+sparkle_private_key*

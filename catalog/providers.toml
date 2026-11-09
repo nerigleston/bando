@@ -1,0 +1,1108 @@
+# Catálogo de providers do Bando.
+#
+# Fonte única: o binário embute este arquivo (scripts/gen-presets.py) e o
+# catálogo remoto assinado é publicado a partir dele. Personalizações do
+# usuário ficam em ~/.config/bando/providers.toml e vencem estas entradas.
+#
+# Sem env: a CLI usa o login que já tem (assinatura ou chave própria).
+[providers.default]
+name = "Login da própria CLI"
+
+# =============================================================================
+# Bando: mapeamento de providers de modelo (pesquisa de 09/11/2026)
+# =============================================================================
+#
+# Regras gerais confirmadas na documentação atual (valem para todos os blocos):
+#
+# CLAUDE CODE (https://code.claude.com/docs/en/llm-gateway-connect)
+#   - ANTHROPIC_AUTH_TOKEN vai no header "Authorization: Bearer"; ANTHROPIC_API_KEY vai em "x-api-key".
+#   - ANTHROPIC_BASE_URL é a raiz, SEM "/v1": o cliente acrescenta /v1/messages sozinho.
+#   - ANTHROPIC_API_KEY = "" evita que uma chave Anthropic do ambiente tenha precedência
+#     (Vercel e OpenRouter pedem isso explicitamente). Com ANTHROPIC_API_KEY não vazio, o
+#     modo interativo pede aprovação uma vez.
+#   - Modelos: ANTHROPIC_MODEL, ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU,FABLE}_MODEL,
+#     CLAUDE_CODE_SUBAGENT_MODEL. ANTHROPIC_SMALL_FAST_MODEL está obsoleto (use DEFAULT_HAIKU).
+#   - Sufixo "[1m]" no ID do modelo faz o Claude Code usar janela de 1M; sem ele assume 200K.
+#   - CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1 lista os modelos do gateway no /model.
+#   - Erros 400 por campos beta desconhecidos: CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1.
+#   - Rede restrita: CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1.
+#   - Anthropic diz que não dá suporte a Claude Code com modelos não-Claude via gateway;
+#     os providers abaixo documentam isso por conta própria.
+#
+# CODEX CLI (https://learn.chatgpt.com/docs/config-file/config-reference ; antigo
+#   developers.openai.com/codex/config-reference redireciona para lá)
+#   - wire_api: "`responses` is the only supported value, and it is the default when omitted."
+#     wire_api="chat" NÃO é mais aceito. Provider que só tem /chat/completions não serve
+#     para o Codex atual (por isso vários providers abaixo não têm bloco for.codex).
+#   - Campos: name, base_url, env_key, wire_api, query_params, http_headers,
+#     env_http_headers, requires_openai_auth.
+#   - IDs reservados (não podem ser redefinidos): openai, ollama, lmstudio.
+#     Também há built-ins "amazon-bedrock" (aws.profile, aws.region) e "gcp"
+#     (project_id, location, credential_file; lê GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_LOCATION).
+#   - oss_provider = "lmstudio" | "ollama", usado com --oss.
+#   - Codex >= 0.134.0 não lê mais [profiles.<nome>] no config.toml (perfil vira arquivo
+#     ~/.codex/<nome>.config.toml). Não afeta o uso de -c.
+#   - Codex não expande variáveis de ambiente dentro de base_url.
+#
+# OPENCODE: as variáveis vêm do catálogo models.dev (https://models.dev/api.json), que é a
+#   fonte de providers do OpenCode. A página https://opencode.ai/docs/providers/ só documenta
+#   explicitamente OPENROUTER_API_KEY, AWS_*, GOOGLE_VERTEX_*, AZURE_RESOURCE_NAME e os locais.
+#   Por isso os blocos for.opencode de providers só presentes no models.dev ficam "parcial".
+#
+# QWEN CODE (https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/)
+#   - Protocolo OpenAI: OPENAI_API_KEY + OPENAI_BASE_URL + OPENAI_MODEL. Exportar
+#     OPENAI_API_KEY já seleciona a autenticação OpenAI-compatível.
+#   - Protocolo Anthropic: ANTHROPIC_API_KEY + ANTHROPIC_BASE_URL + ANTHROPIC_MODEL.
+#   - Gemini: GEMINI_API_KEY + GEMINI_MODEL.
+#
+# CRUSH (https://github.com/charmbracelet/crush README): só lê chaves por variável; base URL
+#   customizada exige config (crush.json), não variável. Só providers da tabela do README.
+#
+# AIDER (https://aider.chat/docs/llms.html): OpenAI-compatível = OPENAI_API_BASE +
+#   OPENAI_API_KEY e o modelo precisa do prefixo "openai/". Ollama usa prefixo "ollama_chat/",
+#   LM Studio "lm_studio/", OpenRouter "openrouter/". O Bando precisa aplicar o prefixo no -m.
+#
+# GOOSE (https://goose-docs.ai/docs/getting-started/providers): a página lista as variáveis,
+#   mas só mostra o ID de GOOSE_PROVIDER para zai_coding_plan. Os demais IDs (anthropic,
+#   openai, google, ollama, openrouter etc.) são de docs antigas: blocos for.goose = parcial.
+#
+# GEMINI CLI (https://geminicli.com/docs/get-started/authentication): GEMINI_API_KEY, ou
+#   Vertex com GOOGLE_CLOUD_PROJECT + GOOGLE_CLOUD_LOCATION (+ ADC/GOOGLE_APPLICATION_CREDENTIALS
+#   ou GOOGLE_API_KEY). Base customizada: GOOGLE_GEMINI_BASE_URL (doc da Cloudflare).
+#   Só fala o protocolo Gemini; não aponta para OpenAI/Anthropic.
+#
+# Convenções deste arquivo: segredo = "keychain:bando/<id>"; valor do usuário = "env:NOME";
+# "<...>" = valor que o usuário precisa preencher (o Codex não expande variáveis em base_url).
+# =============================================================================
+
+
+# =============================================================================
+# 1. LABORATÓRIOS / APIs DIRETAS
+# =============================================================================
+
+# Fonte: https://code.claude.com/docs/en/llm-gateway-connect ; https://models.dev/api.json ; https://github.com/charmbracelet/crush  | verificado: sim
+[providers.anthropic]
+name   = "Anthropic"
+models = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]
+
+[providers.anthropic.for.claude]
+env = { ANTHROPIC_API_KEY = "keychain:bando/anthropic" }
+
+[providers.anthropic.for.opencode]
+env = { ANTHROPIC_API_KEY = "keychain:bando/anthropic" }
+
+[providers.anthropic.for.crush]
+env = { ANTHROPIC_API_KEY = "keychain:bando/anthropic" }
+
+# parcial: aider/goose pelas docs de provider de cada um (goose: ANTHROPIC_API_KEY confirmado; ID "anthropic" de doc antiga)
+[providers.anthropic.for.aider]
+env = { ANTHROPIC_API_KEY = "keychain:bando/anthropic" }
+
+[providers.anthropic.for.goose]
+env = { GOOSE_PROVIDER = "anthropic", ANTHROPIC_API_KEY = "keychain:bando/anthropic" }
+
+
+# Fonte: https://learn.chatgpt.com/docs/config-file/config-reference ; https://models.dev/api.json  | verificado: sim
+# Codex usa OpenAI nativamente (model_provider padrão = "openai"); basta a chave.
+[providers.openai]
+name   = "OpenAI"
+models = ["gpt-6.1-terra", "gpt-6.1-sol", "gpt-6-astra"]
+
+[providers.openai.for.codex]
+env = { OPENAI_API_KEY = "keychain:bando/openai" }
+
+[providers.openai.for.opencode]
+env = { OPENAI_API_KEY = "keychain:bando/openai" }
+
+[providers.openai.for.crush]
+env = { OPENAI_API_KEY = "keychain:bando/openai" }
+
+[providers.openai.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/openai", OPENAI_BASE_URL = "https://api.openai.com/v1" }
+
+[providers.openai.for.aider]
+env = { OPENAI_API_KEY = "keychain:bando/openai" }
+
+[providers.openai.for.goose]
+env = { GOOSE_PROVIDER = "openai", OPENAI_API_KEY = "keychain:bando/openai" }
+
+
+# Fonte: https://geminicli.com/docs/get-started/authentication ; https://aistudio.google.com/docs/openai ; https://models.dev/api.json  | verificado: sim
+# Endpoint OpenAI-compatível: https://generativelanguage.googleapis.com/v1beta/openai/ (só chat/completions; Responses não documentado => sem Codex).
+# Sem endpoint Anthropic => sem Claude Code.
+[providers.google-gemini]
+name   = "Google Gemini API"
+models = ["gemini-4-argon", "gemini-3.8-flash"]
+
+[providers.google-gemini.for.gemini]
+env = { GEMINI_API_KEY = "keychain:bando/google-gemini" }
+
+[providers.google-gemini.for.opencode]
+env = { GEMINI_API_KEY = "keychain:bando/google-gemini" }
+
+[providers.google-gemini.for.crush]
+env = { GEMINI_API_KEY = "keychain:bando/google-gemini" }
+
+[providers.google-gemini.for.qwen]
+env = { GEMINI_API_KEY = "keychain:bando/google-gemini" }
+
+[providers.google-gemini.for.aider]
+env = { GEMINI_API_KEY = "keychain:bando/google-gemini" }
+
+# parcial: goose lê GOOGLE_API_KEY (confirmado); ID "google" de doc antiga
+[providers.google-gemini.for.goose]
+env = { GOOSE_PROVIDER = "google", GOOGLE_API_KEY = "keychain:bando/google-gemini" }
+
+
+# Fonte: https://docs.x.ai/docs/api-reference ; https://models.dev/api.json  | verificado: parcial
+# Base https://api.x.ai/v1 com /v1/responses documentado. Não há guia oficial de Codex da xAI (parcial).
+# A camada compatível com Anthropic (/v1/messages) consta como descontinuada => sem Claude Code.
+[providers.xai]
+name   = "xAI (Grok)"
+models = ["grok-4.7", "grok-4.6"]
+
+[providers.xai.for.codex]
+env  = { XAI_API_KEY = "keychain:bando/xai" }
+args = ["-c", "model_provider=\"xai\"", "-c", "model_providers.xai.name=\"xAI\"", "-c", "model_providers.xai.base_url=\"https://api.x.ai/v1\"", "-c", "model_providers.xai.env_key=\"XAI_API_KEY\"", "-c", "model_providers.xai.wire_api=\"responses\""]
+
+[providers.xai.for.opencode]
+env = { XAI_API_KEY = "keychain:bando/xai" }
+
+[providers.xai.for.crush]
+env = { XAI_API_KEY = "keychain:bando/xai" }
+
+[providers.xai.for.aider]
+env = { XAI_API_KEY = "keychain:bando/xai" }
+
+[providers.xai.for.goose]
+env = { GOOSE_PROVIDER = "xai", XAI_API_KEY = "keychain:bando/xai" }
+
+
+# Fonte: https://docs.mistral.ai/api/endpoint/responses ; https://models.dev/api.json  | verificado: parcial
+# /v1/responses existe em public preview e é stateless; sem guia de Codex oficial. Sem endpoint Anthropic.
+[providers.mistral]
+name   = "Mistral AI"
+models = ["mistral-large-4", "devstral-latest"]
+
+[providers.mistral.for.codex]
+env  = { MISTRAL_API_KEY = "keychain:bando/mistral" }
+args = ["-c", "model_provider=\"mistral\"", "-c", "model_providers.mistral.name=\"Mistral\"", "-c", "model_providers.mistral.base_url=\"https://api.mistral.ai/v1\"", "-c", "model_providers.mistral.env_key=\"MISTRAL_API_KEY\"", "-c", "model_providers.mistral.wire_api=\"responses\""]
+
+[providers.mistral.for.opencode]
+env = { MISTRAL_API_KEY = "keychain:bando/mistral" }
+
+[providers.mistral.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/mistral", OPENAI_BASE_URL = "https://api.mistral.ai/v1" }
+
+[providers.mistral.for.goose]
+env = { GOOSE_PROVIDER = "mistral", MISTRAL_API_KEY = "keychain:bando/mistral" }
+
+
+# Fonte: https://api-docs.deepseek.com/quick_start/agent_integrations/claude_code ; https://api-docs.deepseek.com/quick_start/agent_integrations/codex  | verificado: sim
+# Claude: doc recomenda mapear todos os slots. claude-opus* -> deepseek-v4-pro; claude-sonnet*/haiku* -> deepseek-flash.
+# Codex: a doc usa base_url "https://api.deepseek.com/" + wire_api="responses" + experimental_bearer_token
+#        (chave dentro do arquivo). Aqui troquei por env_key, que é o mecanismo padrão do Codex (parcial).
+#        A doc também usa model_catalog_json = "~/.codex/models.json" (opcional).
+[providers.deepseek]
+name   = "DeepSeek"
+models = ["deepseek-v4-pro", "deepseek-flash"]
+
+[providers.deepseek.for.claude]
+env = { ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic", ANTHROPIC_AUTH_TOKEN = "keychain:bando/deepseek", ANTHROPIC_API_KEY = "", ANTHROPIC_MODEL = "deepseek-flash[1m]", ANTHROPIC_DEFAULT_OPUS_MODEL = "deepseek-flash[1m]", ANTHROPIC_DEFAULT_SONNET_MODEL = "deepseek-flash[1m]", ANTHROPIC_DEFAULT_HAIKU_MODEL = "deepseek-flash", CLAUDE_CODE_SUBAGENT_MODEL = "deepseek-flash", CLAUDE_CODE_AUTO_COMPACT_WINDOW = "786432" }
+
+[providers.deepseek.for.codex]
+env  = { DEEPSEEK_API_KEY = "keychain:bando/deepseek" }
+args = ["-c", "model_provider=\"deepseek\"", "-c", "model_providers.deepseek.name=\"deepseek\"", "-c", "model_providers.deepseek.base_url=\"https://api.deepseek.com/\"", "-c", "model_providers.deepseek.env_key=\"DEEPSEEK_API_KEY\"", "-c", "model_providers.deepseek.wire_api=\"responses\""]
+
+[providers.deepseek.for.opencode]
+env = { DEEPSEEK_API_KEY = "keychain:bando/deepseek" }
+
+[providers.deepseek.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/deepseek", OPENAI_BASE_URL = "https://api.deepseek.com" }
+
+[providers.deepseek.for.aider]
+env = { DEEPSEEK_API_KEY = "keychain:bando/deepseek" }
+
+
+# Fonte: https://platform.kimi.ai/docs/guide/claude-code-kimi.md ; https://platform.kimi.ai/docs/guide/codex-kimi.md  | verificado: sim
+# platform.moonshot.ai agora redireciona para platform.kimi.ai. Base OpenAI: https://api.moonshot.ai/v1 (China: api.moonshot.cn).
+# Armadilha: kimi-k2.7-code exige thinking ligado ("only type=enabled is allowed for this model").
+# A doc do Codex usa env_key = "KIMI_API_KEY"; OpenCode/Crush leem MOONSHOT_API_KEY. Mesma chave, nomes diferentes.
+[providers.moonshot]
+name   = "Moonshot (Kimi)"
+models = ["kimi-k3.1-pro", "kimi-k3", "kimi-k2.7-code"]
+
+[providers.moonshot.for.claude]
+env = { ANTHROPIC_BASE_URL = "https://api.moonshot.ai/anthropic", ANTHROPIC_AUTH_TOKEN = "keychain:bando/moonshot", ANTHROPIC_API_KEY = "", ANTHROPIC_MODEL = "kimi-k3[1m]", ANTHROPIC_DEFAULT_OPUS_MODEL = "kimi-k3[1m]", ANTHROPIC_DEFAULT_SONNET_MODEL = "kimi-k3[1m]", ANTHROPIC_DEFAULT_HAIKU_MODEL = "kimi-k2.7-code", ANTHROPIC_DEFAULT_FABLE_MODEL = "kimi-k3[1m]", CLAUDE_CODE_SUBAGENT_MODEL = "kimi-k3[1m]", CLAUDE_CODE_AUTO_COMPACT_WINDOW = "1000000" }
+
+[providers.moonshot.for.codex]
+env  = { KIMI_API_KEY = "keychain:bando/moonshot" }
+args = ["-c", "model_provider=\"kimi\"", "-c", "model_providers.kimi.name=\"Kimi\"", "-c", "model_providers.kimi.base_url=\"https://api.moonshot.ai/v1\"", "-c", "model_providers.kimi.env_key=\"KIMI_API_KEY\"", "-c", "model_providers.kimi.wire_api=\"responses\""]
+
+[providers.moonshot.for.opencode]
+env = { MOONSHOT_API_KEY = "keychain:bando/moonshot" }
+
+[providers.moonshot.for.crush]
+env = { MOONSHOT_API_KEY = "keychain:bando/moonshot" }
+
+[providers.moonshot.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/moonshot", OPENAI_BASE_URL = "https://api.moonshot.ai/v1" }
+
+
+# Fonte: https://models.dev/api.json (provider kimi-code-plan-global)  | verificado: parcial
+# Plano de assinatura Kimi Code (chave própria, diferente da API Moonshot). Endpoint Anthropic do plano não confirmado.
+[providers.kimi-code]
+name   = "Kimi Code (plano)"
+models = ["kimi-for-coding", "k3.1-pro"]
+
+[providers.kimi-code.for.opencode]
+env = { KIMI_API_KEY = "keychain:bando/kimi-code" }
+
+
+# Fonte: https://docs.z.ai/devpack/tool/claude ; https://docs.z.ai/devpack/tool/codex.md  | verificado: sim
+# GLM Coding Plan (internacional). API_TIMEOUT_MS=3000000 é recomendado pela própria z.ai.
+# Codex: endpoint Responses dedicado https://api.z.ai/api/v1 (diferente do /api/coding/paas/v4 de chat).
+#        A doc usa experimental_bearer_token + model_catalog_json; env_key aqui é inferido (parcial).
+# OpenCode: provider "zai-coding-plan" lê ZHIPU_API_KEY (models.dev). Crush lê ZAI_API_KEY. Goose: ZAI_CODING_PLAN_API_KEY.
+[providers.zai]
+name   = "Z.ai (GLM Coding Plan)"
+models = ["glm-5.3", "glm-5.3-flash"]
+
+[providers.zai.for.claude]
+env = { ANTHROPIC_BASE_URL = "https://api.z.ai/api/anthropic", ANTHROPIC_AUTH_TOKEN = "keychain:bando/zai", ANTHROPIC_API_KEY = "", API_TIMEOUT_MS = "3000000", ANTHROPIC_DEFAULT_OPUS_MODEL = "glm-5.3[1m]", ANTHROPIC_DEFAULT_SONNET_MODEL = "glm-5.3[1m]", ANTHROPIC_DEFAULT_HAIKU_MODEL = "glm-5.3-flash[1m]", CLAUDE_CODE_AUTO_COMPACT_WINDOW = "1000000", CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1" }
+
+[providers.zai.for.codex]
+env  = { ZAI_API_KEY = "keychain:bando/zai" }
+args = ["-c", "model_provider=\"zai\"", "-c", "model_providers.zai.name=\"ZAI\"", "-c", "model_providers.zai.base_url=\"https://api.z.ai/api/v1\"", "-c", "model_providers.zai.env_key=\"ZAI_API_KEY\"", "-c", "model_providers.zai.wire_api=\"responses\""]
+
+[providers.zai.for.opencode]
+env = { ZHIPU_API_KEY = "keychain:bando/zai" }
+
+[providers.zai.for.crush]
+env = { ZAI_API_KEY = "keychain:bando/zai" }
+
+[providers.zai.for.goose]
+env = { GOOSE_PROVIDER = "zai_coding_plan", GOOSE_MODEL = "glm-5.3", ZAI_CODING_PLAN_API_KEY = "keychain:bando/zai" }
+
+[providers.zai.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/zai", OPENAI_BASE_URL = "https://api.z.ai/api/coding/paas/v4" }
+
+
+# Fonte: https://models.dev/api.json (zhipuai-coding-plan) ; https://docs.bigmodel.cn/cn/coding-plan/tool/codex.md  | verificado: parcial
+# Versão China (bigmodel.cn). Endpoint Anthropic https://open.bigmodel.cn/api/anthropic não foi aberto nesta pesquisa.
+[providers.zhipu-cn]
+name   = "Zhipu BigModel (China)"
+models = ["glm-5.3"]
+
+[providers.zhipu-cn.for.claude]
+env = { ANTHROPIC_BASE_URL = "https://open.bigmodel.cn/api/anthropic", ANTHROPIC_AUTH_TOKEN = "keychain:bando/zhipu-cn", ANTHROPIC_API_KEY = "", API_TIMEOUT_MS = "3000000" }
+
+[providers.zhipu-cn.for.opencode]
+env = { ZHIPU_API_KEY = "keychain:bando/zhipu-cn" }
+
+
+# Fonte: https://platform.minimax.io/docs/coding-plan/claude-code ; https://platform.minimax.io/docs/token-plan/codex  | verificado: sim
+# A doc pede para remover ANTHROPIC_AUTH_TOKEN/ANTHROPIC_BASE_URL exportados no shell (sobrescrevem o settings).
+# China: https://api.minimaxi.com/anthropic e https://api.minimaxi.com/v1.
+# Codex: página atual usa wire_api="responses" (a antiga usava "chat" e pedia Codex 0.57.0). Vi só trechos: parcial no Codex.
+[providers.minimax]
+name   = "MiniMax"
+models = ["MiniMax-M3.1-Flash", "MiniMax-M3"]
+
+[providers.minimax.for.claude]
+env = { ANTHROPIC_BASE_URL = "https://api.minimax.io/anthropic", ANTHROPIC_AUTH_TOKEN = "keychain:bando/minimax", ANTHROPIC_API_KEY = "", ANTHROPIC_MODEL = "MiniMax-M3.1-Flash[1m]", ANTHROPIC_DEFAULT_OPUS_MODEL = "MiniMax-M3.1-Flash[1m]", ANTHROPIC_DEFAULT_SONNET_MODEL = "MiniMax-M3.1-Flash[1m]", ANTHROPIC_DEFAULT_HAIKU_MODEL = "MiniMax-M3.1-Flash[1m]", CLAUDE_CODE_AUTO_COMPACT_WINDOW = "524288" }
+
+[providers.minimax.for.codex]
+env  = { MINIMAX_API_KEY = "keychain:bando/minimax" }
+args = ["-c", "model_provider=\"minimax\"", "-c", "model_providers.minimax.name=\"MiniMax\"", "-c", "model_providers.minimax.base_url=\"https://api.minimax.io/v1\"", "-c", "model_providers.minimax.env_key=\"MINIMAX_API_KEY\"", "-c", "model_providers.minimax.wire_api=\"responses\""]
+
+[providers.minimax.for.opencode]
+env = { MINIMAX_API_KEY = "keychain:bando/minimax" }
+
+[providers.minimax.for.crush]
+env = { MINIMAX_API_KEY = "keychain:bando/minimax" }
+
+
+# Fonte: https://www.alibabacloud.com/help/en/model-studio/claude-code ; https://www.alibabacloud.com/help/en/model-studio/codex ; https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/  | verificado: sim
+# Pay-as-you-go internacional (Singapura). A seção de setup usa URL com workspace:
+#   https://{WorkspaceId}.ap-southeast-1.maas.aliyuncs.com/apps/anthropic
+# e o FAQ usa https://dashscope-intl.aliyuncs.com/apps/anthropic (sem workspace). Usei a do FAQ.
+# Codex: Responses só para qwen3.7-max/plus, qwen3.6-plus/flash; outros modelos (ex.: glm-5) só por chat => não funcionam no Codex atual.
+# Crush lê ALIBABA_SINGAPORE_API_KEY (ou ALIBABA_US_API_KEY).
+[providers.dashscope]
+name   = "Alibaba Model Studio (DashScope)"
+models = ["qwen3.7-max", "qwen3.8-max", "qwen3.6-flash"]
+
+[providers.dashscope.for.claude]
+env = { ANTHROPIC_BASE_URL = "https://dashscope-intl.aliyuncs.com/apps/anthropic", ANTHROPIC_AUTH_TOKEN = "keychain:bando/dashscope", ANTHROPIC_API_KEY = "", ANTHROPIC_MODEL = "qwen3.7-max", ANTHROPIC_DEFAULT_OPUS_MODEL = "qwen3.7-max", ANTHROPIC_DEFAULT_SONNET_MODEL = "qwen3.7-max", ANTHROPIC_DEFAULT_HAIKU_MODEL = "qwen3.6-flash", CLAUDE_CODE_SUBAGENT_MODEL = "qwen3.7-max" }
+
+[providers.dashscope.for.codex]
+env  = { DASHSCOPE_API_KEY = "keychain:bando/dashscope" }
+args = ["-c", "model_provider=\"dashscope\"", "-c", "model_providers.dashscope.name=\"Alibaba Model Studio\"", "-c", "model_providers.dashscope.base_url=\"https://dashscope-intl.aliyuncs.com/compatible-mode/v1\"", "-c", "model_providers.dashscope.env_key=\"DASHSCOPE_API_KEY\"", "-c", "model_providers.dashscope.wire_api=\"responses\""]
+
+[providers.dashscope.for.opencode]
+env = { DASHSCOPE_API_KEY = "keychain:bando/dashscope" }
+
+[providers.dashscope.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/dashscope", OPENAI_BASE_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1" }
+
+[providers.dashscope.for.crush]
+env = { ALIBABA_SINGAPORE_API_KEY = "keychain:bando/dashscope" }
+
+
+# Fonte: https://www.alibabacloud.com/help/en/model-studio/claude-code ; https://www.alibabacloud.com/help/en/model-studio/codex-coding-plan ; https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/  | verificado: sim
+# Coding Plan usa chave própria (chave errada => 401 invalid_api_key).
+# Codex: a Alibaba diz que o Coding Plan NÃO funciona via Responses (exige wire_api="chat" e Codex 0.80.0) => sem Codex.
+[providers.dashscope-coding]
+name   = "Alibaba Coding Plan"
+models = ["qwen3.7-plus", "qwen3-coder-next"]
+
+[providers.dashscope-coding.for.claude]
+env = { ANTHROPIC_BASE_URL = "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic", ANTHROPIC_AUTH_TOKEN = "keychain:bando/dashscope-coding", ANTHROPIC_API_KEY = "", ANTHROPIC_MODEL = "qwen3.7-plus", ANTHROPIC_DEFAULT_OPUS_MODEL = "qwen3.7-plus", ANTHROPIC_DEFAULT_SONNET_MODEL = "qwen3.7-plus", ANTHROPIC_DEFAULT_HAIKU_MODEL = "qwen3.7-plus", CLAUDE_CODE_SUBAGENT_MODEL = "qwen3.7-plus" }
+
+[providers.dashscope-coding.for.opencode]
+env = { ALIBABA_CODING_PLAN_API_KEY = "keychain:bando/dashscope-coding" }
+
+[providers.dashscope-coding.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/dashscope-coding", OPENAI_BASE_URL = "https://coding-intl.dashscope.aliyuncs.com/v1" }
+
+
+# Fonte: https://docs.cohere.com/docs/compatibility-api ; https://models.dev/api.json  | verificado: parcial
+# Compatibility API só tem chat/completions, embeddings e transcrição => sem Codex; sem Anthropic.
+[providers.cohere]
+name   = "Cohere"
+models = ["command-a-plus-05-2026", "north-mini-code-1-0"]
+
+[providers.cohere.for.opencode]
+env = { COHERE_API_KEY = "keychain:bando/cohere" }
+
+[providers.cohere.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/cohere", OPENAI_BASE_URL = "https://api.cohere.ai/compatibility/v1" }
+
+[providers.cohere.for.aider]
+env = { COHERE_API_KEY = "keychain:bando/cohere" }
+
+
+# Fonte: https://models.dev/api.json (xiaomi)  | verificado: parcial
+[providers.xiaomi-mimo]
+name   = "Xiaomi MiMo"
+models = ["mimo-v2.6-pro", "mimo-v2.6-flash"]
+
+[providers.xiaomi-mimo.for.opencode]
+env = { XIAOMI_API_KEY = "keychain:bando/xiaomi-mimo" }
+
+[providers.xiaomi-mimo.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/xiaomi-mimo", OPENAI_BASE_URL = "https://api.xiaomimimo.com/v1" }
+
+
+# Fonte: https://models.dev/api.json (stepfun)  | verificado: parcial
+[providers.stepfun]
+name   = "StepFun"
+models = ["step-5-preview", "step-3.7-flash"]
+
+[providers.stepfun.for.opencode]
+env = { STEPFUN_API_KEY = "keychain:bando/stepfun" }
+
+[providers.stepfun.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/stepfun", OPENAI_BASE_URL = "https://api.stepfun.com/v1" }
+
+
+# Fonte: https://models.dev/api.json (volcengine)  | verificado: parcial
+[providers.volcengine]
+name   = "Volcengine Ark (ByteDance)"
+models = ["doubao-seed-2-1-turbo-260628", "glm-5-3-flash-260828"]
+
+[providers.volcengine.for.opencode]
+env = { ARK_API_KEY = "keychain:bando/volcengine" }
+
+[providers.volcengine.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/volcengine", OPENAI_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3" }
+
+
+# =============================================================================
+# 2. AGREGADORES E INFERÊNCIA
+# =============================================================================
+
+# Fonte: https://openrouter.ai/docs/guides/guides/claude-code-integration ; https://openrouter.ai/docs/guides/guides/codex-cli ; https://opencode.ai/docs/providers/  | verificado: sim
+# Claude: ANTHROPIC_API_KEY precisa ser "" (doc explícita). Recomenda Anthropic como provider prioritário.
+# Codex: a doc recomenda bloco auth com comando (echo $OPENROUTER_API_KEY); com env_key funciona,
+#        mas "Codex won't fetch the OpenRouter model catalog in that mode". Responses API é stateless
+#        (store:true ou previous_response_id => 400).
+# Aliases "~provider/familia-latest" sempre apontam para a versão mais nova.
+[providers.openrouter]
+name   = "OpenRouter"
+models = ["~anthropic/claude-sonnet-latest", "~anthropic/claude-opus-latest", "~openai/gpt-sol-latest", "z-ai/glm-5.3"]
+
+[providers.openrouter.for.claude]
+env = { ANTHROPIC_BASE_URL = "https://openrouter.ai/api", ANTHROPIC_AUTH_TOKEN = "keychain:bando/openrouter", ANTHROPIC_API_KEY = "", CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY = "1" }
+
+[providers.openrouter.for.codex]
+env  = { OPENROUTER_API_KEY = "keychain:bando/openrouter" }
+args = ["-c", "model_provider=\"openrouter\"", "-c", "model_providers.openrouter.name=\"OpenRouter\"", "-c", "model_providers.openrouter.base_url=\"https://openrouter.ai/api/v1\"", "-c", "model_providers.openrouter.env_key=\"OPENROUTER_API_KEY\"", "-c", "model_providers.openrouter.wire_api=\"responses\""]
+
+[providers.openrouter.for.opencode]
+env = { OPENROUTER_API_KEY = "keychain:bando/openrouter" }
+
+[providers.openrouter.for.crush]
+env = { OPENROUTER_API_KEY = "keychain:bando/openrouter" }
+
+[providers.openrouter.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/openrouter", OPENAI_BASE_URL = "https://openrouter.ai/api/v1" }
+
+# aider: modelo com prefixo "openrouter/"
+[providers.openrouter.for.aider]
+env = { OPENROUTER_API_KEY = "keychain:bando/openrouter" }
+
+[providers.openrouter.for.goose]
+env = { GOOSE_PROVIDER = "openrouter", OPENROUTER_API_KEY = "keychain:bando/openrouter" }
+
+
+# Fonte: https://vercel.com/docs/ai-gateway/coding-agents/claude-code ; https://vercel.com/docs/ai-gateway/coding-agents/openai-codex  | verificado: sim
+# Claude: endpoint dedicado /claude-code (sem /v1). Modelos aparecem como "claude-code/<provider>/<modelo>".
+#         Roteando para Bedrock/Vertex: CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1.
+# Codex: endpoint dedicado /codex/v1 (serve /codex/v1/models no formato que o Codex lê).
+# Crush lê VERCEL_API_KEY (nome diferente de AI_GATEWAY_API_KEY).
+[providers.vercel-ai-gateway]
+name   = "Vercel AI Gateway"
+models = ["anthropic/claude-sonnet-5", "anthropic/claude-opus-5-5", "openai/gpt-6-astra"]
+
+[providers.vercel-ai-gateway.for.claude]
+env = { ANTHROPIC_BASE_URL = "https://ai-gateway.vercel.sh/claude-code", ANTHROPIC_AUTH_TOKEN = "keychain:bando/vercel-ai-gateway", ANTHROPIC_API_KEY = "", CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY = "1" }
+
+[providers.vercel-ai-gateway.for.codex]
+env  = { AI_GATEWAY_API_KEY = "keychain:bando/vercel-ai-gateway" }
+args = ["-c", "model_provider=\"vercel\"", "-c", "model_providers.vercel.name=\"Vercel AI Gateway\"", "-c", "model_providers.vercel.base_url=\"https://ai-gateway.vercel.sh/codex/v1\"", "-c", "model_providers.vercel.env_key=\"AI_GATEWAY_API_KEY\"", "-c", "model_providers.vercel.wire_api=\"responses\""]
+
+[providers.vercel-ai-gateway.for.opencode]
+env = { AI_GATEWAY_API_KEY = "keychain:bando/vercel-ai-gateway" }
+
+[providers.vercel-ai-gateway.for.crush]
+env = { VERCEL_API_KEY = "keychain:bando/vercel-ai-gateway" }
+
+
+# Fonte: https://developers.cloudflare.com/ai-gateway/integrations/coding-agents/claude-code/ ; https://developers.cloudflare.com/ai-gateway/integrations/coding-agents/openai-codex/ ; https://developers.cloudflare.com/ai-gateway/integrations/coding-agents/gemini-cli/  | verificado: sim
+# URLs exigem <ACCOUNT_ID> e <GATEWAY_ID> literais (o Codex não expande variáveis em base_url).
+# Claude: o token do gateway vai no header cf-aig-authorization via ANTHROPIC_CUSTOM_HEADERS; aqui o
+#         keychain guarda a LINHA INTEIRA "cf-aig-authorization: Bearer <token>". ANTHROPIC_API_KEY é
+#         obrigatório (pode ser o mesmo token; é ignorado com Unified Billing/BYOK). Token precisa de permissão Run.
+# Codex: só modelos OpenAI com Responses API passam por esse caminho.
+# Gemini CLI: a doc da Cloudflare usa domínio próprio + Cloudflare Access; aqui o formato padrão do gateway (parcial).
+[providers.cloudflare-ai-gateway]
+name   = "Cloudflare AI Gateway"
+models = ["claude-sonnet-5", "gpt-5.5"]
+
+[providers.cloudflare-ai-gateway.for.claude]
+env = { ANTHROPIC_BASE_URL = "https://gateway.ai.cloudflare.com/v1/<ACCOUNT_ID>/<GATEWAY_ID>/anthropic", ANTHROPIC_API_KEY = "keychain:bando/cloudflare-ai-gateway", ANTHROPIC_CUSTOM_HEADERS = "keychain:bando/cloudflare-ai-gateway-header" }
+
+[providers.cloudflare-ai-gateway.for.codex]
+env  = { CLOUDFLARE_API_KEY = "keychain:bando/cloudflare-ai-gateway" }
+args = ["-c", "model_provider=\"cloudflare\"", "-c", "model_providers.cloudflare.name=\"Cloudflare AI Gateway\"", "-c", "model_providers.cloudflare.base_url=\"https://gateway.ai.cloudflare.com/v1/<ACCOUNT_ID>/<GATEWAY_ID>/openai\"", "-c", "model_providers.cloudflare.env_key=\"CLOUDFLARE_API_KEY\"", "-c", "model_providers.cloudflare.wire_api=\"responses\""]
+
+[providers.cloudflare-ai-gateway.for.opencode]
+env = { CLOUDFLARE_API_TOKEN = "keychain:bando/cloudflare-ai-gateway", CLOUDFLARE_ACCOUNT_ID = "env:CLOUDFLARE_ACCOUNT_ID", CLOUDFLARE_GATEWAY_ID = "env:CLOUDFLARE_GATEWAY_ID" }
+
+[providers.cloudflare-ai-gateway.for.gemini]
+env = { GOOGLE_GEMINI_BASE_URL = "https://gateway.ai.cloudflare.com/v1/<ACCOUNT_ID>/<GATEWAY_ID>/google-ai-studio", GEMINI_API_KEY = "keychain:bando/cloudflare-ai-gateway" }
+
+
+# Fonte: https://models.dev/api.json (cloudflare-workers-ai)  | verificado: parcial
+# Endpoint OpenAI-compatível com o account id no caminho.
+[providers.cloudflare-workers-ai]
+name   = "Cloudflare Workers AI"
+models = ["@cf/zai-org/glm-5.3", "@cf/qwen/qwen3.8-27b"]
+
+[providers.cloudflare-workers-ai.for.opencode]
+env = { CLOUDFLARE_API_KEY = "keychain:bando/cloudflare-workers-ai", CLOUDFLARE_ACCOUNT_ID = "env:CLOUDFLARE_ACCOUNT_ID" }
+
+[providers.cloudflare-workers-ai.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/cloudflare-workers-ai", OPENAI_BASE_URL = "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai/v1" }
+
+
+# Fonte: https://huggingface.co/docs/inference-providers/integrations/claude-code ; https://huggingface.co/docs/inference-providers/integrations/codex  | verificado: sim
+# Claude: a doc define o MESMO token em ANTHROPIC_AUTH_TOKEN e ANTHROPIC_API_KEY.
+# Sufixos no ID: ":fastest" (padrão), ":cheapest", ":preferred" ou ":<provider>" (ex.: ":groq").
+# Cobrança para organização: ANTHROPIC_CUSTOM_HEADERS="X-HF-Bill-To: <org>" (Claude) / http_headers (Codex).
+[providers.huggingface]
+name   = "Hugging Face Inference Providers"
+models = ["zai-org/GLM-5.1", "openai/gpt-oss-120b", "MiniMaxAI/MiniMax-M2.7"]
+
+[providers.huggingface.for.claude]
+env = { ANTHROPIC_BASE_URL = "https://router.huggingface.co", ANTHROPIC_AUTH_TOKEN = "keychain:bando/huggingface", ANTHROPIC_API_KEY = "keychain:bando/huggingface", ANTHROPIC_DEFAULT_OPUS_MODEL = "zai-org/GLM-5.1", ANTHROPIC_DEFAULT_SONNET_MODEL = "zai-org/GLM-5.1", ANTHROPIC_DEFAULT_HAIKU_MODEL = "zai-org/GLM-5.1", CLAUDE_CODE_SUBAGENT_MODEL = "zai-org/GLM-5.1" }
+
+[providers.huggingface.for.codex]
+env  = { HF_TOKEN = "keychain:bando/huggingface" }
+args = ["-c", "model_provider=\"huggingface\"", "-c", "model_providers.huggingface.name=\"Hugging Face\"", "-c", "model_providers.huggingface.base_url=\"https://router.huggingface.co/v1\"", "-c", "model_providers.huggingface.env_key=\"HF_TOKEN\"", "-c", "model_providers.huggingface.wire_api=\"responses\""]
+
+[providers.huggingface.for.opencode]
+env = { HF_TOKEN = "keychain:bando/huggingface" }
+
+[providers.huggingface.for.crush]
+env = { HF_TOKEN = "keychain:bando/huggingface" }
+
+[providers.huggingface.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/huggingface", OPENAI_BASE_URL = "https://router.huggingface.co/v1" }
+
+
+# Fonte: https://docs.requesty.ai/integrations/claude-code ; https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/  | verificado: sim
+# Responses API da Requesty não confirmada => sem Codex.
+[providers.requesty]
+name   = "Requesty"
+models = ["kimi-k3.1-pro", "minimax-m3.1-flash"]
+
+[providers.requesty.for.claude]
+env = { ANTHROPIC_BASE_URL = "https://router.requesty.ai", ANTHROPIC_AUTH_TOKEN = "keychain:bando/requesty", ANTHROPIC_API_KEY = "" }
+
+[providers.requesty.for.opencode]
+env = { REQUESTY_API_KEY = "keychain:bando/requesty" }
+
+[providers.requesty.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/requesty", OPENAI_BASE_URL = "https://router.requesty.ai/v1" }
+
+
+# Fonte: https://console.groq.com/docs/responses-api ; https://console.groq.com/docs/coding-with-groq  | verificado: parcial
+# Responses API em beta em https://api.groq.com/openai/v1 ("all models support the Responses API").
+# Groq não documenta Codex (parcial). Sem endpoint Anthropic (há pedido aberto na comunidade).
+[providers.groq]
+name   = "Groq"
+models = ["openai/gpt-oss-120b", "qwen/qwen3.8-27b"]
+
+[providers.groq.for.codex]
+env  = { GROQ_API_KEY = "keychain:bando/groq" }
+args = ["-c", "model_provider=\"groq\"", "-c", "model_providers.groq.name=\"Groq\"", "-c", "model_providers.groq.base_url=\"https://api.groq.com/openai/v1\"", "-c", "model_providers.groq.env_key=\"GROQ_API_KEY\"", "-c", "model_providers.groq.wire_api=\"responses\""]
+
+[providers.groq.for.opencode]
+env = { GROQ_API_KEY = "keychain:bando/groq" }
+
+[providers.groq.for.crush]
+env = { GROQ_API_KEY = "keychain:bando/groq" }
+
+[providers.groq.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/groq", OPENAI_BASE_URL = "https://api.groq.com/openai/v1" }
+
+[providers.groq.for.aider]
+env = { GROQ_API_KEY = "keychain:bando/groq" }
+
+[providers.groq.for.goose]
+env = { GOOSE_PROVIDER = "groq", GROQ_API_KEY = "keychain:bando/groq" }
+
+
+# Fonte: https://models.dev/api.json ; https://github.com/charmbracelet/crush ; https://goose-docs.ai/docs/getting-started/providers  | verificado: parcial
+# Sem endpoint Anthropic nem Responses documentados pela Cerebras. Base OpenAI de fontes secundárias.
+[providers.cerebras]
+name   = "Cerebras"
+models = ["qwen-3.8-27b", "gpt-oss-120b"]
+
+[providers.cerebras.for.opencode]
+env = { CEREBRAS_API_KEY = "keychain:bando/cerebras" }
+
+[providers.cerebras.for.crush]
+env = { CEREBRAS_API_KEY = "keychain:bando/cerebras" }
+
+[providers.cerebras.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/cerebras", OPENAI_BASE_URL = "https://api.cerebras.ai/v1" }
+
+[providers.cerebras.for.goose]
+env = { GOOSE_PROVIDER = "cerebras", CEREBRAS_API_KEY = "keychain:bando/cerebras" }
+
+
+# Fonte: https://docs.together.ai/docs/how-to-use-togetherlink ; https://models.dev/api.json  | verificado: parcial
+# Claude Code/Codex só pelo wrapper "togetherlink claude|codex" (gateway hospedado sem URL documentada)
+# ou via LiteLLM local. Por isso não há for.claude/for.codex.
+[providers.together]
+name   = "Together AI"
+models = ["moonshotai/Kimi-K3.1-Pro", "zai-org/GLM-5.3-Flash", "deepseek-ai/DeepSeek-V4.1-Flash"]
+
+[providers.together.for.opencode]
+env = { TOGETHER_API_KEY = "keychain:bando/together" }
+
+[providers.together.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/together", OPENAI_BASE_URL = "https://api.together.xyz/v1" }
+
+
+# Fonte: https://docs.fireworks.ai/tools-sdks/anthropic-compatibility  | verificado: sim
+# Claude: usar ANTHROPIC_AUTH_TOKEN; chave Fireworks em ANTHROPIC_API_KEY causa "Not logged in".
+# Região só-EUA: https://us.api.fireworks.ai/inference. count_tokens retorna 404 (fonte secundária).
+[providers.fireworks]
+name   = "Fireworks AI"
+models = ["accounts/fireworks/models/kimi-k3p1-pro", "accounts/fireworks/models/minimax-m3p1-flash", "accounts/fireworks/models/kimi-k2p5"]
+
+[providers.fireworks.for.claude]
+env = { ANTHROPIC_BASE_URL = "https://api.fireworks.ai/inference", ANTHROPIC_AUTH_TOKEN = "keychain:bando/fireworks", ANTHROPIC_API_KEY = "" }
+
+[providers.fireworks.for.opencode]
+env = { FIREWORKS_API_KEY = "keychain:bando/fireworks" }
+
+[providers.fireworks.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/fireworks", OPENAI_BASE_URL = "https://api.fireworks.ai/inference/v1" }
+
+
+# Fonte: https://docs.deepinfra.com/integrations/anthropic  | verificado: sim
+# Aceita Bearer ou x-api-key; suporta /v1/messages/count_tokens.
+[providers.deepinfra]
+name   = "DeepInfra"
+models = ["deepseek-ai/DeepSeek-V4.1-Flash-1017", "moonshotai/Kimi-K3", "zai-org/GLM-5.3"]
+
+[providers.deepinfra.for.claude]
+env = { ANTHROPIC_BASE_URL = "https://api.deepinfra.com/anthropic", ANTHROPIC_AUTH_TOKEN = "keychain:bando/deepinfra", ANTHROPIC_API_KEY = "", ANTHROPIC_DEFAULT_OPUS_MODEL = "deepseek-ai/DeepSeek-V4-Pro-0813[1m]", ANTHROPIC_DEFAULT_SONNET_MODEL = "deepseek-ai/DeepSeek-V4.1-Flash-1017[1m]", ANTHROPIC_DEFAULT_HAIKU_MODEL = "inclusionAI/Ling-3.0-flash" }
+
+[providers.deepinfra.for.opencode]
+env = { DEEPINFRA_API_KEY = "keychain:bando/deepinfra" }
+
+# parcial: base OpenAI da DeepInfra de memória/docs antigas
+[providers.deepinfra.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/deepinfra", OPENAI_BASE_URL = "https://api.deepinfra.com/v1/openai" }
+
+
+# Fonte: https://docs.novita.ai/guides/claude-code ; https://models.dev/api.json  | verificado: sim
+# A doc ainda usa ANTHROPIC_SMALL_FAST_MODEL (obsoleto no Claude Code); troquei por ANTHROPIC_DEFAULT_HAIKU_MODEL.
+# O exemplo oficial (moonshotai/kimi-k2-instruct) está desatualizado; models abaixo vêm do catálogo.
+[providers.novita]
+name   = "Novita AI"
+models = ["moonshotai/kimi-k3.1-pro", "minimax/minimax-m3.1-flash", "deepseek/deepseek-v4.1-flash-1017"]
+
+[providers.novita.for.claude]
+env = { ANTHROPIC_BASE_URL = "https://api.novita.ai/anthropic", ANTHROPIC_AUTH_TOKEN = "keychain:bando/novita", ANTHROPIC_API_KEY = "" }
+
+[providers.novita.for.opencode]
+env = { NOVITA_API_KEY = "keychain:bando/novita" }
+
+[providers.novita.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/novita", OPENAI_BASE_URL = "https://api.novita.ai/openai" }
+
+[providers.novita.for.goose]
+env = { GOOSE_PROVIDER = "novita", NOVITA_API_KEY = "keychain:bando/novita" }
+
+
+# Fonte: https://docs.siliconflow.com/en/usercases/use-siliconcloud-in-ClaudeCode  | verificado: sim
+# Doc oficial usa ANTHROPIC_API_KEY; blog da própria SiliconFlow diz que o endpoint documenta Bearer (AUTH_TOKEN).
+# Sem /v1 na base (com /v1 vira /v1/v1/messages). China: https://api.siliconflow.cn
+[providers.siliconflow]
+name   = "SiliconFlow"
+models = ["zai-org/GLM-5.3", "deepseek-ai/DeepSeek-V4-Pro-0813"]
+
+[providers.siliconflow.for.claude]
+env = { ANTHROPIC_BASE_URL = "https://api.siliconflow.com", ANTHROPIC_API_KEY = "keychain:bando/siliconflow" }
+
+[providers.siliconflow.for.opencode]
+env = { SILICONFLOW_API_KEY = "keychain:bando/siliconflow" }
+
+[providers.siliconflow.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/siliconflow", OPENAI_BASE_URL = "https://api.siliconflow.com/v1" }
+
+
+# Fonte: https://sambanova.ai/blog/sambacloud-now-supports-the-anthropic-messages-api ; https://models.dev/api.json  | verificado: parcial
+# Claude: doc da SambaNova usa ANTHROPIC_API_KEY. Sem tools server-side, PDF e imagens por URL.
+[providers.sambanova]
+name   = "SambaNova Cloud"
+models = ["MiniMax-M3", "DeepSeek-V3.2", "gpt-oss-120b"]
+
+[providers.sambanova.for.claude]
+env = { ANTHROPIC_BASE_URL = "https://api.sambanova.ai", ANTHROPIC_API_KEY = "keychain:bando/sambanova", ANTHROPIC_MODEL = "MiniMax-M3" }
+
+[providers.sambanova.for.opencode]
+env = { SAMBANOVA_API_KEY = "keychain:bando/sambanova" }
+
+[providers.sambanova.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/sambanova", OPENAI_BASE_URL = "https://api.sambanova.ai/v1" }
+
+
+# Fonte: https://models.dev/api.json (nebius)  | verificado: parcial
+# Nebius AI Studio virou "Token Factory": base mudou para api.tokenfactory.nebius.com.
+[providers.nebius]
+name   = "Nebius Token Factory"
+models = ["MiniMaxAI/MiniMax-M3.1-Flash", "deepseek-ai/DeepSeek-V4.1-Flash-1017"]
+
+[providers.nebius.for.opencode]
+env = { NEBIUS_API_KEY = "keychain:bando/nebius" }
+
+[providers.nebius.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/nebius", OPENAI_BASE_URL = "https://api.tokenfactory.nebius.com/v1" }
+
+
+# Fonte: https://docs.hyperbolic.xyz (não aberto; base de memória)  | verificado: parcial
+# Ausente do models.dev => OpenCode só via provider customizado.
+[providers.hyperbolic]
+name   = "Hyperbolic"
+models = []
+
+[providers.hyperbolic.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/hyperbolic", OPENAI_BASE_URL = "https://api.hyperbolic.xyz/v1" }
+
+
+# Fonte: https://models.dev/api.json (baseten)  | verificado: parcial
+[providers.baseten]
+name   = "Baseten"
+models = ["moonshotai/Kimi-K3.1-Pro", "deepseek-ai/DeepSeek-V4.1-Flash-1017"]
+
+[providers.baseten.for.opencode]
+env = { BASETEN_API_KEY = "keychain:bando/baseten" }
+
+[providers.baseten.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/baseten", OPENAI_BASE_URL = "https://inference.baseten.co/v1" }
+
+
+# Fonte: https://models.dev/api.json (chutes)  | verificado: parcial
+[providers.chutes]
+name   = "Chutes"
+models = ["zai-org/GLM-5.3", "moonshotai/Kimi-K2.7-Code"]
+
+[providers.chutes.for.opencode]
+env = { CHUTES_API_KEY = "keychain:bando/chutes" }
+
+[providers.chutes.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/chutes", OPENAI_BASE_URL = "https://llm.chutes.ai/v1" }
+
+
+# Fonte: https://models.dev/api.json (nvidia)  | verificado: parcial
+# NVIDIA também documenta Claude Code com NIM self-hosted (docs.nvidia.com/nim/.../claude-code.html), não com a API hospedada.
+[providers.nvidia]
+name   = "NVIDIA NIM (build.nvidia.com)"
+models = ["z-ai/glm-5.3", "minimaxai/minimax-m3.1-flash"]
+
+[providers.nvidia.for.opencode]
+env = { NVIDIA_API_KEY = "keychain:bando/nvidia" }
+
+[providers.nvidia.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/nvidia", OPENAI_BASE_URL = "https://integrate.api.nvidia.com/v1" }
+
+
+# Fonte: https://models.dev/api.json (synthetic) ; https://github.com/charmbracelet/crush  | verificado: parcial
+[providers.synthetic]
+name   = "Synthetic"
+models = ["hf:zai-org/GLM-5.3", "hf:moonshotai/Kimi-K3"]
+
+[providers.synthetic.for.opencode]
+env = { SYNTHETIC_API_KEY = "keychain:bando/synthetic" }
+
+[providers.synthetic.for.crush]
+env = { SYNTHETIC_API_KEY = "keychain:bando/synthetic" }
+
+[providers.synthetic.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/synthetic", OPENAI_BASE_URL = "https://api.synthetic.new/openai/v1" }
+
+
+# Fonte: https://models.dev/api.json (zenmux) ; https://docs.zenmux.ai/best-practices/claude-code (não aberto)  | verificado: parcial
+[providers.zenmux]
+name   = "ZenMux"
+models = []
+
+[providers.zenmux.for.opencode]
+env = { ZENMUX_API_KEY = "keychain:bando/zenmux" }
+
+[providers.zenmux.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/zenmux", OPENAI_BASE_URL = "https://zenmux.ai/api/v1" }
+
+
+# Fonte: https://models.dev/api.json (opencode, opencode-go) ; https://github.com/charmbracelet/crush  | verificado: parcial
+# Zen e Go usam a mesma variável; Go usa base https://opencode.ai/inference/go/openai/v1.
+[providers.opencode-zen]
+name   = "OpenCode Zen / Go"
+models = []
+
+[providers.opencode-zen.for.opencode]
+env = { OPENCODE_API_KEY = "keychain:bando/opencode-zen" }
+
+[providers.opencode-zen.for.crush]
+env = { OPENCODE_API_KEY = "keychain:bando/opencode-zen" }
+
+
+# Fonte: https://docs.litellm.ai/docs/tutorials/claude_responses_api ; https://docs.litellm.ai/docs/proxy/client_setup/codex_cli ; https://goose-docs.ai/docs/getting-started/providers  | verificado: sim
+# Proxy local, porta padrão 4000. Para pass-through Anthropic puro: ANTHROPIC_BASE_URL=http://localhost:4000/anthropic.
+# OpenCode: sem provider nativo (usar provider customizado @ai-sdk/openai-compatible).
+[providers.litellm]
+name   = "LiteLLM Proxy"
+models = ["claude-sonnet-5"]
+
+[providers.litellm.for.claude]
+env = { ANTHROPIC_BASE_URL = "http://localhost:4000", ANTHROPIC_AUTH_TOKEN = "keychain:bando/litellm", ANTHROPIC_API_KEY = "" }
+
+[providers.litellm.for.codex]
+env  = { LITELLM_API_KEY = "keychain:bando/litellm" }
+args = ["-c", "model_provider=\"litellm\"", "-c", "model_providers.litellm.name=\"LiteLLM\"", "-c", "model_providers.litellm.base_url=\"http://localhost:4000/v1\"", "-c", "model_providers.litellm.env_key=\"LITELLM_API_KEY\"", "-c", "model_providers.litellm.wire_api=\"responses\""]
+
+[providers.litellm.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/litellm", OPENAI_BASE_URL = "http://localhost:4000/v1" }
+
+[providers.litellm.for.goose]
+env = { GOOSE_PROVIDER = "litellm", LITELLM_HOST = "http://localhost:4000", LITELLM_API_KEY = "keychain:bando/litellm" }
+
+
+# =============================================================================
+# 3. NUVENS
+# =============================================================================
+
+# Fonte: https://code.claude.com/docs/en/amazon-bedrock ; https://learn.chatgpt.com/docs/config-file/config-reference ; https://opencode.ai/docs/providers/ ; https://github.com/charmbracelet/crush  | verificado: sim
+# Claude: credenciais pela cadeia padrão do SDK AWS (AWS_PROFILE, chaves, SSO) ou AWS_BEARER_TOKEN_BEDROCK.
+#   Região: AWS_REGION > AWS_DEFAULT_REGION > região do perfil > us-east-1.
+#   Sem pin, "opus" resolve para Opus 5.5 (preço Opus). Para pinar: ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL
+#   com IDs de inference profile (prefixo us./eu./apac./global.). ANTHROPIC_BEDROCK_REGION_PREFIX muda só o prefixo.
+#   WebSearch não existe no Bedrock. Endpoint Mantle (API Anthropic nativa): CLAUDE_CODE_USE_MANTLE=1.
+# Codex: provider built-in "amazon-bedrock" (aws.profile / aws.region no config). Leitura de AWS_REGION do ambiente não confirmada (parcial).
+[providers.aws-bedrock]
+name   = "Amazon Bedrock"
+models = ["us.anthropic.claude-opus-5-5", "us.anthropic.claude-sonnet-4-6", "us.anthropic.claude-haiku-4-5-20251001-v1:0"]
+
+[providers.aws-bedrock.for.claude]
+env = { CLAUDE_CODE_USE_BEDROCK = "1", AWS_REGION = "env:AWS_REGION", AWS_PROFILE = "env:AWS_PROFILE" }
+
+[providers.aws-bedrock.for.codex]
+env  = { AWS_REGION = "env:AWS_REGION", AWS_PROFILE = "env:AWS_PROFILE" }
+args = ["-c", "model_provider=\"amazon-bedrock\""]
+
+[providers.aws-bedrock.for.opencode]
+env = { AWS_REGION = "env:AWS_REGION", AWS_PROFILE = "env:AWS_PROFILE" }
+
+[providers.aws-bedrock.for.crush]
+env = { AWS_REGION = "env:AWS_REGION", AWS_PROFILE = "env:AWS_PROFILE" }
+
+[providers.aws-bedrock.for.goose]
+env = { GOOSE_PROVIDER = "aws_bedrock", AWS_REGION = "env:AWS_REGION", AWS_PROFILE = "env:AWS_PROFILE" }
+
+
+# Fonte: https://code.claude.com/docs/en/amazon-bedrock (seção API key)  | verificado: sim
+# Variante com chave de API do Bedrock (bearer). Com ela setada, o Claude Code ignora a cadeia de credenciais.
+[providers.aws-bedrock-apikey]
+name   = "Amazon Bedrock (API key)"
+models = ["us.anthropic.claude-opus-5-5", "us.anthropic.claude-sonnet-4-6"]
+
+[providers.aws-bedrock-apikey.for.claude]
+env = { CLAUDE_CODE_USE_BEDROCK = "1", AWS_REGION = "env:AWS_REGION", AWS_BEARER_TOKEN_BEDROCK = "keychain:bando/aws-bedrock-apikey" }
+
+[providers.aws-bedrock-apikey.for.opencode]
+env = { AWS_REGION = "env:AWS_REGION", AWS_BEARER_TOKEN_BEDROCK = "keychain:bando/aws-bedrock-apikey" }
+
+[providers.aws-bedrock-apikey.for.crush]
+env = { AWS_REGION = "env:AWS_REGION", AWS_BEARER_TOKEN_BEDROCK = "keychain:bando/aws-bedrock-apikey" }
+
+
+# Fonte: https://code.claude.com/docs/en/google-vertex-ai ; https://geminicli.com/docs/get-started/authentication ; https://opencode.ai/docs/providers/ ; https://learn.chatgpt.com/docs/config-file/config-reference  | verificado: sim
+# Vertex AI agora se chama "Google Cloud's Agent Platform" na doc do Claude Code (variáveis continuam iguais).
+# Claude: CLOUD_ML_REGION aceita "global", multi-região ("us", "eu") ou região. Fallback: us-east5.
+#   Modelos sem endpoint global: VERTEX_REGION_CLAUDE_<MODELO>=<região> (ex.: VERTEX_REGION_CLAUDE_HAIKU_4_5).
+#   ANTHROPIC_VERTEX_PROJECT_ID tem precedência sobre GOOGLE_CLOUD_PROJECT. Autenticação via ADC (gcloud).
+# Gemini CLI: GOOGLE_GENAI_USE_VERTEXAI=true não aparece na página atual de auth (vem do Qwen Code e de docs antigas): parcial.
+# OpenCode: ID "google-vertex" (o antigo "google-vertex-anthropic" foi aposentado).
+# Codex: provider built-in "gcp" (project_id/location; lê GOOGLE_CLOUD_PROJECT/GOOGLE_CLOUD_LOCATION, padrão "global"): parcial.
+# Crush: VERTEXAI_PROJECT/VERTEXAI_LOCATION (só Gemini).
+[providers.google-vertex]
+name   = "Google Vertex AI (Agent Platform)"
+models = ["claude-opus-5-5", "claude-sonnet-5", "claude-haiku-4-5@20251001", "gemini-4-argon"]
+
+[providers.google-vertex.for.claude]
+env = { CLAUDE_CODE_USE_VERTEX = "1", CLOUD_ML_REGION = "global", ANTHROPIC_VERTEX_PROJECT_ID = "env:GOOGLE_CLOUD_PROJECT" }
+
+[providers.google-vertex.for.gemini]
+env = { GOOGLE_GENAI_USE_VERTEXAI = "true", GOOGLE_CLOUD_PROJECT = "env:GOOGLE_CLOUD_PROJECT", GOOGLE_CLOUD_LOCATION = "env:GOOGLE_CLOUD_LOCATION" }
+
+[providers.google-vertex.for.opencode]
+env = { GOOGLE_VERTEX_PROJECT = "env:GOOGLE_CLOUD_PROJECT", GOOGLE_VERTEX_LOCATION = "env:GOOGLE_CLOUD_LOCATION" }
+
+[providers.google-vertex.for.codex]
+env  = { GOOGLE_CLOUD_PROJECT = "env:GOOGLE_CLOUD_PROJECT", GOOGLE_CLOUD_LOCATION = "env:GOOGLE_CLOUD_LOCATION" }
+args = ["-c", "model_provider=\"gcp\""]
+
+[providers.google-vertex.for.crush]
+env = { VERTEXAI_PROJECT = "env:GOOGLE_CLOUD_PROJECT", VERTEXAI_LOCATION = "env:GOOGLE_CLOUD_LOCATION" }
+
+[providers.google-vertex.for.goose]
+env = { GOOSE_PROVIDER = "gcp_vertex_ai", GCP_PROJECT_ID = "env:GOOGLE_CLOUD_PROJECT", GCP_LOCATION = "env:GOOGLE_CLOUD_LOCATION" }
+
+
+# Fonte: https://code.claude.com/docs/en/microsoft-foundry  | verificado: sim
+# Claude no Azure (Microsoft Foundry). ANTHROPIC_FOUNDRY_RESOURCE é só o NOME do recurso (URL é recusada).
+# Alternativa: ANTHROPIC_FOUNDRY_BASE_URL=https://{resource}.services.ai.azure.com/anthropic.
+# Sem chave => usa Entra ID (az login). Foundry não tem checagem de modelo na inicialização: sem pin, falha se o default
+# (Opus 4.6) não existir. Os IDs de modelo são os NOMES DOS DEPLOYMENTS.
+[providers.azure-foundry]
+name   = "Microsoft Foundry (Claude)"
+models = ["claude-opus-4-8", "claude-sonnet-5", "claude-haiku-4-5"]
+
+[providers.azure-foundry.for.claude]
+env = { CLAUDE_CODE_USE_FOUNDRY = "1", ANTHROPIC_FOUNDRY_RESOURCE = "env:ANTHROPIC_FOUNDRY_RESOURCE", ANTHROPIC_FOUNDRY_API_KEY = "keychain:bando/azure-foundry" }
+
+
+# Fonte: https://opencode.ai/docs/providers/ ; https://github.com/charmbracelet/crush ; https://goose-docs.ai/docs/getting-started/providers  | verificado: parcial
+# Azure OpenAI. Codex: base https://<recurso>.openai.azure.com/openai/v1 com wire_api="responses" vem de guias
+# de terceiros (parcial). Modelos = nomes de deployment.
+[providers.azure-openai]
+name   = "Azure OpenAI"
+models = ["gpt-6.1-terra", "gpt-6.1-sol"]
+
+[providers.azure-openai.for.codex]
+env  = { AZURE_OPENAI_API_KEY = "keychain:bando/azure-openai" }
+args = ["-c", "model_provider=\"azure\"", "-c", "model_providers.azure.name=\"Azure OpenAI\"", "-c", "model_providers.azure.base_url=\"https://<RECURSO>.openai.azure.com/openai/v1\"", "-c", "model_providers.azure.env_key=\"AZURE_OPENAI_API_KEY\"", "-c", "model_providers.azure.wire_api=\"responses\""]
+
+[providers.azure-openai.for.opencode]
+env = { AZURE_RESOURCE_NAME = "env:AZURE_RESOURCE_NAME", AZURE_API_KEY = "keychain:bando/azure-openai" }
+
+[providers.azure-openai.for.crush]
+env = { AZURE_OPENAI_API_ENDPOINT = "env:AZURE_OPENAI_API_ENDPOINT", AZURE_OPENAI_API_KEY = "keychain:bando/azure-openai", AZURE_OPENAI_API_VERSION = "env:AZURE_OPENAI_API_VERSION" }
+
+[providers.azure-openai.for.goose]
+env = { GOOSE_PROVIDER = "azure_openai", AZURE_OPENAI_ENDPOINT = "env:AZURE_OPENAI_ENDPOINT", AZURE_OPENAI_DEPLOYMENT_NAME = "env:AZURE_OPENAI_DEPLOYMENT_NAME", AZURE_OPENAI_API_KEY = "keychain:bando/azure-openai" }
+
+
+# =============================================================================
+# 4. LOCAIS
+# =============================================================================
+
+# Fonte: https://docs.ollama.com/integrations/claude-code ; https://docs.ollama.com/integrations/codex ; https://docs.ollama.com/api/openai-compatibility ; https://opencode.ai/docs/providers/ ; https://aider.chat/docs/llms/ollama.html  | verificado: sim
+# Claude: token "ollama" é ignorado pelo servidor local, mas obrigatório no cliente. /v1/messages não suporta tool_choice/metadata.
+#   Atalho oficial: "ollama launch claude".
+# Codex: "codex --oss" com oss_provider=ollama; /v1/responses só stateless. Contexto mínimo 64k.
+# OpenCode: autodescoberta em http://127.0.0.1:11434 (sem env).
+# Aider: prefixo "ollama_chat/"; janela padrão do Ollama (2k) corta contexto em silêncio.
+[providers.ollama]
+name   = "Ollama (local)"
+models = ["qwen3.5", "gpt-oss:120b", "gpt-oss:20b"]
+
+[providers.ollama.for.claude]
+env = { ANTHROPIC_BASE_URL = "http://localhost:11434", ANTHROPIC_AUTH_TOKEN = "ollama", ANTHROPIC_API_KEY = "" }
+
+[providers.ollama.for.codex]
+args = ["--oss", "-c", "oss_provider=\"ollama\""]
+
+[providers.ollama.for.opencode]
+env = {}
+
+[providers.ollama.for.qwen]
+env = { OPENAI_API_KEY = "ollama", OPENAI_BASE_URL = "http://localhost:11434/v1" }
+
+[providers.ollama.for.aider]
+env = { OLLAMA_API_BASE = "http://127.0.0.1:11434" }
+
+[providers.ollama.for.goose]
+env = { GOOSE_PROVIDER = "ollama", OLLAMA_HOST = "localhost:11434" }
+
+
+# Fonte: https://docs.ollama.com/integrations/claude-code ; https://docs.ollama.com/api/anthropic-compatibility ; https://docs.ollama.com/api/openai-compatibility  | verificado: sim
+# Ollama Cloud direto: Anthropic exige Bearer (x-api-key sozinho é recusado); Responses sem estado e sem web search.
+# Goose usa OLLAMA_CLOUD_API_KEY (nome diferente).
+[providers.ollama-cloud]
+name   = "Ollama Cloud"
+models = ["glm-5.3-flash", "kimi-k2.7-code:cloud", "gpt-oss:120b-cloud"]
+
+[providers.ollama-cloud.for.claude]
+env = { ANTHROPIC_BASE_URL = "https://ollama.com", ANTHROPIC_AUTH_TOKEN = "keychain:bando/ollama-cloud", ANTHROPIC_API_KEY = "" }
+
+[providers.ollama-cloud.for.codex]
+env  = { OLLAMA_API_KEY = "keychain:bando/ollama-cloud" }
+args = ["-c", "model_provider=\"ollama-cloud\"", "-c", "model_providers.ollama-cloud.name=\"Ollama Cloud\"", "-c", "model_providers.ollama-cloud.base_url=\"https://ollama.com/v1\"", "-c", "model_providers.ollama-cloud.env_key=\"OLLAMA_API_KEY\"", "-c", "model_providers.ollama-cloud.wire_api=\"responses\""]
+
+[providers.ollama-cloud.for.opencode]
+env = { OLLAMA_API_KEY = "keychain:bando/ollama-cloud" }
+
+[providers.ollama-cloud.for.goose]
+env = { GOOSE_PROVIDER = "ollama_cloud", OLLAMA_CLOUD_API_KEY = "keychain:bando/ollama-cloud" }
+
+
+# Fonte: https://lmstudio.ai/docs/integrations/claude-code ; https://lmstudio.ai/docs/integrations/codex ; https://aider.chat/docs/llms/lm-studio.html  | verificado: sim
+# Claude: a doc pede CLAUDE_CODE_ATTRIBUTION_HEADER=0. Contexto > ~25k. Com "Require Authentication", trocar o token.
+# Codex: "--oss" usa POST /v1/responses; sem -m baixa openai/gpt-oss-20b.
+# Aider: LM_STUDIO_API_KEY obrigatório mesmo sem auth; prefixo "lm_studio/".
+[providers.lmstudio]
+name   = "LM Studio"
+models = ["openai/gpt-oss-20b", "ibm/granite-4-micro"]
+
+[providers.lmstudio.for.claude]
+env = { ANTHROPIC_BASE_URL = "http://localhost:1234", ANTHROPIC_AUTH_TOKEN = "lmstudio", ANTHROPIC_API_KEY = "", CLAUDE_CODE_ATTRIBUTION_HEADER = "0" }
+
+[providers.lmstudio.for.codex]
+args = ["--oss", "-c", "oss_provider=\"lmstudio\""]
+
+[providers.lmstudio.for.opencode]
+env = {}
+
+[providers.lmstudio.for.qwen]
+env = { OPENAI_API_KEY = "lmstudio", OPENAI_BASE_URL = "http://localhost:1234/v1" }
+
+[providers.lmstudio.for.aider]
+env = { LM_STUDIO_API_BASE = "http://localhost:1234/v1", LM_STUDIO_API_KEY = "dummy-api-key" }
+
+[providers.lmstudio.for.goose]
+env = { GOOSE_PROVIDER = "lmstudio" }
+
+
+# Fonte: https://docs.vllm.ai/en/latest/serving/integrations/claude_code/ ; https://opencode.ai/docs/providers/  | verificado: sim
+# Servidor: vllm serve <modelo> --served-model-name my-model --enable-auto-tool-choice --tool-call-parser <parser>.
+# IDs com "/" (ID cru do HF) não funcionam no Claude Code: usar o --served-model-name.
+# OpenCode: autodescoberta em 127.0.0.1:8000, mas com tools desligadas por padrão.
+[providers.vllm]
+name   = "vLLM"
+models = ["my-model"]
+
+[providers.vllm.for.claude]
+env = { ANTHROPIC_BASE_URL = "http://localhost:8000", ANTHROPIC_AUTH_TOKEN = "dummy", ANTHROPIC_API_KEY = "dummy", ANTHROPIC_DEFAULT_OPUS_MODEL = "my-model", ANTHROPIC_DEFAULT_SONNET_MODEL = "my-model", ANTHROPIC_DEFAULT_HAIKU_MODEL = "my-model" }
+
+[providers.vllm.for.opencode]
+env = {}
+
+[providers.vllm.for.qwen]
+env = { OPENAI_API_KEY = "dummy", OPENAI_BASE_URL = "http://localhost:8000/v1" }
+
+
+# Fonte: https://huggingface.co/blog/ggml-org/anthropic-messages-api-in-llamacpp ; https://github.com/ggml-org/llama.cpp/pull/17570  | verificado: parcial
+# llama-server tem /v1/messages desde jan/2026 (traduz para o pipeline OpenAI interno). Porta padrão 8080.
+# Token precisa ser não vazio no cliente. OpenCode: sem provider nativo (usar openai-compatible). Responses não confirmado.
+[providers.llamacpp]
+name   = "llama.cpp server"
+models = []
+
+[providers.llamacpp.for.claude]
+env = { ANTHROPIC_BASE_URL = "http://127.0.0.1:8080", ANTHROPIC_AUTH_TOKEN = "llamacpp", ANTHROPIC_API_KEY = "" }
+
+[providers.llamacpp.for.qwen]
+env = { OPENAI_API_KEY = "llamacpp", OPENAI_BASE_URL = "http://127.0.0.1:8080/v1" }
+
+
+# Fonte: https://www.jan.ai/docs/desktop/api-preference ; https://www.jan.ai/docs/desktop/agents  | verificado: parcial
+# Servidor local em http://127.0.0.1:1337 com /v1/messages compatível com Anthropic. Atalho oficial: "jan launch claude" (Jan >= 0.7.8).
+# Configuração manual do ANTHROPIC_BASE_URL não está documentada pela Jan. Porta é configurável.
+[providers.jan]
+name   = "Jan"
+models = []
+
+[providers.jan.for.claude]
+env = { ANTHROPIC_BASE_URL = "http://127.0.0.1:1337", ANTHROPIC_AUTH_TOKEN = "jan", ANTHROPIC_API_KEY = "" }
+
+[providers.jan.for.qwen]
+env = { OPENAI_API_KEY = "jan", OPENAI_BASE_URL = "http://127.0.0.1:1337/v1" }
+
+
+# Fonte: https://localai.io/blog/what-landed-in-localai-3-10/ (só o título lido)  | verificado: parcial
+# LocalAI 3.10 anunciou APIs Anthropic e Responses; rota /v1/messages vista em espelho do repositório. Porta padrão 8080.
+[providers.localai]
+name   = "LocalAI"
+models = []
+
+[providers.localai.for.claude]
+env = { ANTHROPIC_BASE_URL = "http://localhost:8080", ANTHROPIC_AUTH_TOKEN = "localai", ANTHROPIC_API_KEY = "" }
+
+[providers.localai.for.qwen]
+env = { OPENAI_API_KEY = "localai", OPENAI_BASE_URL = "http://localhost:8080/v1" }
+
+
+# =============================================================================
+# PESQUISADOS E DESCARTADOS
+# =============================================================================
+#
+# - GitHub Models: "As of July 30, 2026, GitHub Models has been fully retired" (docs.github.com/en/github-models/quickstart).
+#   Inferência, catálogo e BYOK desligados. Não mapear models.github.ai.
+# - xAI no Claude Code: a camada Anthropic (/v1/messages) consta como descontinuada; a referência atual só lista
+#   /v1/responses. Mantido só para Codex/OpenCode/Crush/Aider/Goose.
+# - Together, Cerebras, Groq, Nebius, Cohere, Mistral no Claude Code: nenhum endpoint Anthropic oficial encontrado.
+#   Together oferece só o wrapper "togetherlink" (gateway sem URL documentada) ou LiteLLM local.
+# - Google Gemini e Cohere no Codex: só chat/completions documentado; Codex atual exige Responses.
+# - Alibaba Coding Plan no Codex: a própria Alibaba diz que só funciona com wire_api="chat" + Codex 0.80.0.
+# - Qualquer config com wire_api="chat" (guias antigos de MiniMax, z.ai, Ollama, DashScope): removido do Codex atual
+#   ("wire_api = chat is no longer supported").
+# - Fireworks/DeepInfra/Novita/SiliconFlow/Requesty no Codex: Responses API não confirmada nas docs abertas.
+# - Claude Platform on AWS (CLAUDE_CODE_USE_ANTHROPIC_AWS + ANTHROPIC_AWS_WORKSPACE_ID): vi só o bloco de gateway;
+#   não mapeado por falta da página principal (code.claude.com/docs/en/claude-platform-on-aws).
+# - Perplexity (Sonar): modelos de busca, não de código.
+# - Hyperbolic: sem entrada no models.dev e doc não aberta; ficou só com Qwen (parcial). Candidato a remoção.
+# - mistral.rs, SGLang, Docker Model Runner, NVIDIA NIM self-hosted, Lemonade, Atomic Chat: também expõem
+#   /v1/messages ou OpenAI, mas ficaram fora do escopo pedido.
+# - Dezenas de revendas/roteadores do models.dev (302ai, aihubmix, poe, helicone, llmgateway, fastrouter,
+#   io-net, scaleway, ovhcloud, venice, wandb etc.): existem no catálogo do OpenCode com env própria
+#   (ex.: POE_API_KEY, HELICONE_API_KEY); não verificados individualmente.
