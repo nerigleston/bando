@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.1.4
+
+- Primeira versão entregue pela atualização automática (sem mudança de recurso).
+
 ## 0.1.3
 
 - Corrige "Não foi possível buscar atualizações": faltava conferir o pacote antes de extrair, exigência do Sparkle para feed assinado. Quem tem a 0.1.1 ou a 0.1.2 precisa reinstalar uma vez (`curl -fsSL https://bando-releases.s3.amazonaws.com/install.sh | bash`); daí em diante o app se atualiza sozinho.
