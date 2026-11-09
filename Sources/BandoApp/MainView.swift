@@ -33,6 +33,8 @@ struct MainView: View {
         .sheet(isPresented: $model.showPalette) { CommandPalette().environment(\.palette, p) }
         .sheet(isPresented: $model.showShortcuts) { ShortcutsSheet().environment(\.palette, p) }
         .sheet(item: $model.renaming) { RenameSheet(session: $0).environment(model) }
+        .sheet(isPresented: $model.showAddProject) { AddProjectSheet().environment(model) }
+        .sheet(isPresented: $model.showImportWorkspace) { ImportWorkspaceSheet().environment(model) }
         .animation(.easeOut(duration: 0.2), value: model.showSidebar)
     }
 }
@@ -366,6 +368,10 @@ struct ContentPanel: View {
     @ViewBuilder var content: some View {
         if let error = model.loadError {
             ContentUnavailableView("Erro na configuração", systemImage: "exclamationmark.triangle", description: Text(error))
+        } else if case .composer(let pid) = model.route {
+            ComposerScreen(projectId: pid)
+        } else if case .project(let pid) = model.route {
+            ProjectPage(projectId: pid)
         } else if model.gridMode {
             SessionGrid()
         } else if let s = model.selectedSession {
@@ -387,7 +393,7 @@ struct EmptyState: View {
             Text("Cada sessão roda um agente de código no seu próprio worktree.\nVocê acompanha todas por aqui.")
                 .font(.system(size: 12)).foregroundStyle(p.secondary).multilineTextAlignment(.center)
             HStack(spacing: 10) {
-                Button("Nova sessão") { model.showNewSession = true }.buttonStyle(AccentButtonStyle())
+                Button("Nova sessão") { model.openComposer() }.buttonStyle(AccentButtonStyle())
                 SettingsLink { Text("Importar do Xirp").font(.system(size: 12)) }.buttonStyle(.plain).foregroundStyle(p.secondary)
             }
             .padding(.top, 4)
@@ -501,9 +507,19 @@ struct SessionPane: View {
         .contextMenu { SessionContextMenu(session: session) }
     }
 
+    var stoppedTitle: String {
+        switch session.status {
+        case .stopped: "Sessão parada"
+        case .exited: "Sessão encerrada"
+        case .error: "Sessão com erro"
+        case .queued: "Sessão na fila"
+        default: "Sessão sem terminal"
+        }
+    }
+
     var stopped: some View {
         VStack(spacing: 10) {
-            Text("Sessão \(session.status.label)").font(.system(size: 14, weight: .bold))
+            Text(stoppedTitle).font(.system(size: 14, weight: .bold))
             if let d = session.statusDetail {
                 Text(d).font(.system(size: 12)).foregroundStyle(p.secondary).multilineTextAlignment(.center)
             }

@@ -30,7 +30,9 @@ struct BandoApp: App {
                 CheckForUpdatesButton(updater: updater)
             }
             CommandGroup(replacing: .newItem) {
-                Button("Nova sessão") { model.showNewSession = true }.keyboardShortcut("n")
+                Button("Nova sessão") { model.openComposer() }.keyboardShortcut("n")
+                Button("Adicionar projeto…") { model.showAddProject = true }.keyboardShortcut("o")
+                Button("Importar workspace…") { model.showImportWorkspace = true }
             }
             CommandMenu("Sessão") {
                 Button("Buscar sessão…") { model.showPalette = true }.keyboardShortcut("k")

@@ -6,15 +6,25 @@ struct Sidebar: View {
     @Environment(\.palette) private var p
     @State private var showFinished = false
     @State private var collapsed: Set<String> = []
+    @State private var expandedStopped: Set<String> = []
     @State private var scrolledFromTop = false
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 0) {
-                ActionRow(symbol: "square.and.pencil", title: "Nova sessão", shortcut: "⌘N") { model.showNewSession = true }
-                ActionRow(symbol: model.sidebarMode == .byProject ? "list.bullet" : "folder",
-                          title: model.sidebarMode == .byProject ? "Ver por estado" : "Ver por projeto", shortcut: nil) {
-                    model.sidebarMode = model.sidebarMode == .byProject ? .byStatus : .byProject
+                if model.sidebarMode == .projects {
+                    ActionRow(symbol: "arrow.left", title: "Voltar às sessões", shortcut: nil) {
+                        model.sidebarMode = .byProject
+                        model.route = .sessions
+                    }
+                    NewProjectRow()
+                } else {
+                    ActionRow(symbol: "square.and.pencil", title: "Nova sessão", shortcut: "⌘N") { model.openComposer() }
+                    ActionRow(symbol: "folder", title: "Projetos", shortcut: nil) { model.sidebarMode = .projects }
+                    ActionRow(symbol: model.sidebarMode == .byProject ? "list.bullet" : "square.stack",
+                              title: model.sidebarMode == .byProject ? "Agrupar por estado" : "Agrupar por projeto", shortcut: nil) {
+                        model.sidebarMode = model.sidebarMode == .byProject ? .byStatus : .byProject
+                    }
                 }
             }
             .padding(.horizontal, 8).padding(.top, 8).padding(.bottom, 4)
@@ -22,7 +32,11 @@ struct Sidebar: View {
             Rectangle().fill(scrolledFromTop ? p.border : .clear).frame(height: 1)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {
-                    if model.sidebarMode == .byProject { byProject } else { byStatus }
+                    switch model.sidebarMode {
+                    case .byProject: byProject
+                    case .byStatus: byStatus
+                    case .projects: projectList
+                    }
                 }
                 .padding(.horizontal, 8)
                 .padding(.top, 8)
@@ -56,15 +70,37 @@ struct Sidebar: View {
             let list = visible.filter { $0.projectId == project.id && !$0.pinned &&
                 ($0.status.isLive || $0.status == .queued || $0.status == .error) }
                 .sorted { ($0.status.urgency, $1.statusChangedAt) < ($1.status.urgency, $0.statusChangedAt) }
-            return list.isEmpty ? nil : (project, list)
+            return list.isEmpty && stopped(of: project.id).isEmpty ? nil : (project, list)
         }
         .sorted { ($0.1.map(\.status.urgency).min() ?? 9, $0.0.name) < ($1.1.map(\.status.urgency).min() ?? 9, $1.0.name) }
         ForEach(Array(groups.enumerated()), id: \.element.0.id) { i, g in
             GroupHeader(title: g.0.name, first: i == 0 && pinned.isEmpty, collapsed: collapsed.contains(g.0.id),
-                        newSession: { model.newSessionProject = g.0.id; model.showNewSession = true }) { toggle(g.0.id) }
-            if !collapsed.contains(g.0.id) { ForEach(g.1) { SessionRow(session: $0, showProject: false) } }
+                        newSession: { model.openComposer(project: g.0.id) }) { toggle(g.0.id) }
+            if !collapsed.contains(g.0.id) {
+                ForEach(g.1) { SessionRow(session: $0, showProject: false) }
+                StoppedToggle(project: g.0, expanded: expandedStopped.contains(g.0.id)) {
+                    if expandedStopped.contains(g.0.id) { expandedStopped.remove(g.0.id) } else { expandedStopped.insert(g.0.id) }
+                }
+                if expandedStopped.contains(g.0.id) {
+                    ForEach(stopped(of: g.0.id).prefix(30)) { SessionRow(session: $0, showProject: false) }
+                }
+            }
         }
-        finished
+    }
+
+    func stopped(of projectId: String) -> [Session] {
+        model.sessions.filter { $0.projectId == projectId && !$0.hidden && !$0.pinned && ($0.status == .stopped || $0.status == .exited) }
+            .sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    /// Modo "Projetos": lista com contagem; clique abre a página do projeto.
+    @ViewBuilder var projectList: some View {
+        let counts = Dictionary(grouping: model.sessions, by: \.projectId).mapValues(\.count)
+        ForEach(model.projects.sorted { ($0.lastUsedAt ?? .distantPast) > ($1.lastUsedAt ?? .distantPast) }) { proj in
+            ProjectRow(project: proj, count: counts[proj.id] ?? 0, selected: model.route == .project(proj.id)) {
+                model.openProject(proj.id)
+            }
+        }
     }
 
     @ViewBuilder var byStatus: some View {
@@ -298,5 +334,82 @@ struct SessionInspector: View {
         } else {
             ContentUnavailableView("Nenhuma sessão", systemImage: "sidebar.right")
         }
+    }
+}
+
+
+/// Linha "N paradas" dentro de cada projeto (recolhida por padrão).
+struct StoppedToggle: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var p
+    let project: Project
+    let expanded: Bool
+    let toggle: () -> Void
+
+    var body: some View {
+        let n = model.sessions.filter { $0.projectId == project.id && !$0.hidden && !$0.pinned && ($0.status == .stopped || $0.status == .exited) }.count
+        if n > 0 {
+            Button(action: toggle) {
+                HStack(spacing: 6) {
+                    Image(systemName: expanded ? "chevron.down" : "chevron.right").font(.system(size: 9, weight: .semibold))
+                    Text("\(n) parada\(n == 1 ? "" : "s")").font(.system(size: 11.5))
+                    Spacer()
+                }
+                .foregroundStyle(p.tertiary)
+                .padding(.horizontal, 10).frame(height: 22)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).pointerCursor()
+        }
+    }
+}
+
+struct ProjectRow: View {
+    @Environment(\.palette) private var p
+    let project: Project
+    let count: Int
+    let selected: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: selected ? "folder.fill" : "folder").font(.system(size: 13)).foregroundStyle(p.secondary)
+                Text(project.name).font(.system(size: 13, weight: selected ? .semibold : .regular)).lineLimit(1)
+                Spacer()
+                if count > 0 { Text("\(count)").font(.system(size: 11.5, design: .monospaced)).foregroundStyle(p.tertiary) }
+            }
+            .foregroundStyle(p.text)
+            .padding(.horizontal, 8).frame(height: 30)
+            .background(RoundedRectangle(cornerRadius: 6).fill(selected ? p.selected : (hovering ? p.hover : .clear)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).pointerCursor()
+        .onHover { hovering = $0 }
+    }
+}
+
+
+/// "Novo projeto": adicionar uma pasta ou importar um workspace inteiro.
+struct NewProjectRow: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var p
+    @State private var open = false
+
+    var body: some View {
+        ActionRow(symbol: "folder.badge.plus", title: "Novo projeto", shortcut: nil) { open.toggle() }
+            .popover(isPresented: $open, arrowEdge: .trailing) {
+                VStack(spacing: 0) {
+                    ActionItem(symbol: "folder.badge.plus", title: "Adicionar projeto…", color: p.text) {
+                        open = false; model.showAddProject = true
+                    }
+                    ActionItem(symbol: "folder.badge.gearshape", title: "Importar workspace…", color: p.text) {
+                        open = false; model.showImportWorkspace = true
+                    }
+                }
+                .padding(6).frame(width: 230)
+                .environment(\.palette, p)
+            }
     }
 }

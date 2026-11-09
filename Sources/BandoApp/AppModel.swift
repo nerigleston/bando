@@ -60,7 +60,31 @@ final class AppModel {
     @ObservationIgnored private var appearanceObserver: NSKeyValueObservation?
     @ObservationIgnored private var lastStatus: [String: SessionStatus] = [:]
 
-    enum SidebarMode: String, CaseIterable { case byStatus, byProject }
+    enum SidebarMode: String, CaseIterable { case byStatus, byProject, projects }
+
+    /// O que o painel central mostra.
+    enum Route: Equatable {
+        /// Sessão selecionada (ou a grade).
+        case sessions
+        /// Página de um projeto.
+        case project(String)
+        /// Caixa de nova sessão (opcionalmente já num projeto).
+        case composer(String?)
+    }
+    var route: Route = .sessions
+    var showAddProject = false
+    var showImportWorkspace = false
+    /// Agente usado por último na caixa de nova sessão.
+    var lastAgent: String {
+        get { UserDefaults.standard.string(forKey: "lastAgent") ?? "claude" }
+        set { UserDefaults.standard.set(newValue, forKey: "lastAgent") }
+    }
+
+    func openComposer(project: String? = nil) {
+        route = .composer(project ?? (route.projectId) ?? selectedSession?.projectId)
+    }
+
+    func openProject(_ id: String) { route = .project(id); sidebarMode = .projects }
 
     init() {
         let d = UserDefaults.standard
@@ -109,6 +133,12 @@ final class AppModel {
             Task { @MainActor in self?.systemIsDark = dark }
         }
         await reload()
+        // Só para testes e capturas: BANDO_OPEN=composer | projects | project:<nome>
+        if let open = ProcessInfo.processInfo.environment["BANDO_OPEN"] {
+            if open == "composer" { openComposer() }
+            else if open == "projects" { sidebarMode = .projects }
+            else if open.hasPrefix("project:"), let p = projects.first(where: { $0.name == String(open.dropFirst(8)) }) { openProject(p.id) }
+        }
         // Pedido de permissão não pode travar o carregamento: a resposta só
         // chega quando o usuário clica no aviso do sistema.
         if Bundle.main.bundleIdentifier != nil {
@@ -240,6 +270,7 @@ final class AppModel {
 
     func select(_ id: String?) {
         selection = id
+        if id != nil { route = .sessions }
         refreshContexts()
         guard let id, let s = session(id) else { return }
         if s.status == .review, let service {
@@ -509,4 +540,14 @@ struct GridPreset: Identifiable, Hashable {
 
 extension Int {
     func nonZero(or fallback: Int) -> Int { self == 0 ? fallback : self }
+}
+
+extension AppModel.Route {
+    var projectId: String? {
+        switch self {
+        case .project(let id): id
+        case .composer(let id): id
+        case .sessions: nil
+        }
+    }
 }
