@@ -304,7 +304,7 @@ struct ProjectPage: View {
                 recentSection
             }
             .padding(28)
-            .frame(maxWidth: 1100, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
