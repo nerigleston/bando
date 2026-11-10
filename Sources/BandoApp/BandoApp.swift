@@ -143,10 +143,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 /// Versão nova encontrada com o app fora de foco: o Sparkle não interrompe e o
 /// Bando manda uma notificação do macOS; clicar nela abre a janela "Instalar".
 @MainActor
-final class Updater: NSObject, SPUStandardUserDriverDelegate {
+final class Updater: NSObject, ObservableObject, SPUStandardUserDriverDelegate, SPUUpdaterDelegate {
     static let showUpdate = Notification.Name("bando.showUpdate")
     nonisolated private static let notificationId = "bando-update"
     private(set) var controller: SPUStandardUpdaterController?
+    /// Versão já baixada (modo automático) esperando para instalar, e como
+    /// instalar agora sem esperar o app fechar.
+    @Published private(set) var readyVersion: String?
+    private var installNow: (() -> Void)?
     private var timer: Timer?
     private var lastCheck = Date.distantPast
     private var observers: [NSObjectProtocol] = []
@@ -155,9 +159,12 @@ final class Updater: NSObject, SPUStandardUserDriverDelegate {
         super.init()
         let hasFeed = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String != nil
         guard hasFeed else { return }
-        controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: self)
+        controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: self, userDriverDelegate: self)
         observers.append(NotificationCenter.default.addObserver(forName: Self.showUpdate, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.controller?.checkForUpdates(nil) }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if let installNow = self.installNow { installNow() } else { self.controller?.checkForUpdates(nil) }
+            }
         })
         observers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
@@ -176,6 +183,34 @@ final class Updater: NSObject, SPUStandardUserDriverDelegate {
               Date().timeIntervalSince(lastCheck) >= minInterval else { return }
         lastCheck = Date()
         updater.checkForUpdatesInBackground()
+    }
+
+    /// Reinicia e instala a versão já baixada.
+    func installReadyUpdate() { installNow?() }
+
+    // MARK: Atualização baixada em segundo plano (SPUUpdaterDelegate)
+
+    /// No modo "baixar e instalar automaticamente" o Sparkle só instalaria ao
+    /// fechar o app, sem avisar. O Bando avisa por notificação e pelo menu, e
+    /// um clique reinicia e instala na hora.
+    nonisolated func updater(_ updater: SPUUpdater, willInstallUpdateOnQuit item: SUAppcastItem,
+                             immediateInstallationBlock immediateInstallHandler: @escaping () -> Void) -> Bool {
+        let version = item.displayVersionString
+        // O Sparkle chama os delegates na main thread.
+        nonisolated(unsafe) let install = immediateInstallHandler
+        MainActor.assumeIsolated {
+            self.installNow = install
+            self.readyVersion = version
+        }
+        Task { @MainActor in
+            let content = UNMutableNotificationContent()
+            content.title = "Bando \(version) pronto para instalar"
+            content.body = "Clique para reiniciar e instalar agora. As sessões continuam no tmux."
+            content.userInfo = ["update": version]
+            let request = UNNotificationRequest(identifier: Self.notificationId, content: content, trigger: nil)
+            try? await UNUserNotificationCenter.current().add(request)
+        }
+        return true
     }
 
     // MARK: Lembrete gentil (SPUStandardUserDriverDelegate)
@@ -212,9 +247,12 @@ final class Updater: NSObject, SPUStandardUserDriverDelegate {
 }
 
 struct CheckForUpdatesButton: View {
-    let updater: Updater
+    @ObservedObject var updater: Updater
 
     var body: some View {
+        if let v = updater.readyVersion {
+            Button("Reiniciar e instalar a \(v)") { updater.installReadyUpdate() }
+        }
         Button("Procurar atualizações…") { updater.controller?.checkForUpdates(nil) }
             .disabled(updater.controller == nil)
     }

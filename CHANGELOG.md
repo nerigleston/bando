@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.1.11
+
+- Com "baixar e instalar automaticamente" ligado, a versão nova era baixada e só entrava quando o app fechava, sem aviso. Agora chega a notificação "Bando X pronto para instalar"; o clique reinicia e instala na hora. O menu Bando também mostra "Reiniciar e instalar a X".
+
 ## 0.1.10
 
 - "Não esmaecer os sem foco" fica salvo: antes voltava a esmaecer quando o app reabria (inclusive depois de atualizar).
