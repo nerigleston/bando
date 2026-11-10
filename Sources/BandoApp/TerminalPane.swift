@@ -128,6 +128,51 @@ final class BandoTerminalView: LocalProcessTerminalView {
     /// Pasta da sessão, para resolver caminhos relativos.
     var workingDirectory: String?
 
+    // MARK: Arrastar e soltar (o SwiftTerm não trata)
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        registerForDraggedTypes([.fileURL, .URL, .string])
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        registerForDraggedTypes([.fileURL, .URL, .string])
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        Self.dropText(from: sender.draggingPasteboard) == nil ? [] : .copy
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        Self.dropText(from: sender.draggingPasteboard) == nil ? [] : .copy
+    }
+
+    /// Cola o caminho (ou o texto) no terminal, como o Terminal do macOS. Não
+    /// manda Enter: quem decide é o usuário.
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard let text = Self.dropText(from: sender.draggingPasteboard) else { return false }
+        window?.makeFirstResponder(self)
+        send(txt: text)
+        return true
+    }
+
+    /// Arquivos viram caminhos protegidos e separados por espaço (com espaço no
+    /// fim, para emendar o próximo); URL web e texto entram como estão.
+    static func dropText(from pb: NSPasteboard) -> String? {
+        if let urls = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty {
+            return urls.map { shellEscape($0.path) }.joined(separator: " ") + " "
+        }
+        if let urls = pb.readObjects(forClasses: [NSURL.self]) as? [URL], let u = urls.first { return u.absoluteString }
+        return pb.string(forType: .string)
+    }
+
+    /// Barra invertida antes de espaço e caracteres que o shell interpreta.
+    static func shellEscape(_ path: String) -> String {
+        let special = Set(" !\"#$&'()*,;<=>?[\\]^`{|}~")
+        return String(path.flatMap { special.contains($0) ? ["\\", $0] : [$0] })
+    }
+
     override func requestOpenLink(source: TerminalView, request: TerminalLinkRequest) {
         if let url = Self.fileURL(from: request.link, relativeTo: workingDirectory) {
             // Só mostra no Finder (seleciona o item); não abre nem executa.

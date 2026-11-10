@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.1.19
+
+- Arrastar arquivo ou pasta do Finder para o terminal cola o caminho, com espaços e caracteres especiais protegidos (vários de uma vez também). Imagem arrastada vira caminho que o Claude Code lê. Texto e links arrastados entram como estão. Nada é executado: o Enter é seu.
+
 ## 0.1.18
 
 - Sessão aberta sem tarefa (vazia) ganha nome a partir da primeira mensagem escrita no agente, no fim da primeira resposta. Antes ficava "sessão 4f66".
