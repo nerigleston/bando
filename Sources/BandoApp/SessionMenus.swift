@@ -58,6 +58,11 @@ struct AgentSwitcherPanel: View {
                             agent = a.agent.id; fixProvider()
                         }
                     }
+                    if updatable.count > 1 {
+                        ActionItem(symbol: "arrow.clockwise", title: "Atualizar todos os agentes", color: p.secondary) {
+                            runInTerminal(updatable.compactMap(\.agent.updateCommand).joined(separator: " ; "))
+                        }
+                    }
                     if !notInstalled.isEmpty {
                         Button { withAnimation(.easeOut(duration: 0.15)) { showOthers.toggle() } } label: {
                             HStack(spacing: 8) {
@@ -95,14 +100,22 @@ struct AgentSwitcherPanel: View {
                         SelectField(selection: $provider, options: providers.map { ($0.id, $0.name) })
                     }
                     VStack(alignment: .leading, spacing: 6) {
-                        FieldLabel("Modelo", hint: "opcional")
-                        TextField(model.config?.providers[provider]?.models.first ?? "padrão do agente", text: $modelName).fieldBox()
+                        FieldLabel("Modelo")
+                        HStack(spacing: 4) {
+                            TextField("padrão da CLI", text: $modelName).fieldBox()
+                            if !providerModels.isEmpty {
+                                Menu {
+                                    ForEach(providerModels, id: \.self) { m in Button(m) { modelName = m } }
+                                } label: { Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)) }
+                                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().pointerCursor()
+                                .help("Modelos do provider")
+                            }
+                        }
                     }
                 }
-                if let current = session.model, modelName.isEmpty, agent == session.agent {
-                    // Vazio = modelo padrão do agente. O campo começa vazio mesmo que a
-                    // sessão tenha escolhido um modelo antes.
-                    Text("Agora: \(current). Vazio volta ao padrão.").font(.system(size: 11)).foregroundStyle(p.tertiary)
+                if provider == "default" {
+                    Text("Usa a conta que o agente já tem (assinatura ou chave configurada na própria CLI), sem passar por outro provider.")
+                        .font(.system(size: 11)).foregroundStyle(p.tertiary).fixedSize(horizontal: false, vertical: true)
                 }
                 if agent != session.agent {
                     VStack(alignment: .leading, spacing: 6) {
@@ -128,13 +141,20 @@ struct AgentSwitcherPanel: View {
             .padding(.horizontal, 14).padding(.bottom, 14)
         }
         .frame(width: 360)
+        .onChange(of: provider) { _, _ in providerChanged() }
         .onAppear {
             agent = session.agent
             provider = session.provider ?? "default"
-            modelName = ""
+            modelName = session.model ?? providerModels.first ?? ""
             handoff = model.handoffDefault
         }
     }
+
+    /// Modelos do provider escolhido; o primeiro é o padrão dele.
+    var providerModels: [String] { model.config?.providers[provider]?.models ?? [] }
+
+    /// Instalados com comando de atualização.
+    var updatable: [AgentAvailability] { installed.filter { $0.isInstalled && $0.agent.updateCommand != nil } }
 
     var installed: [AgentAvailability] { agents.filter { $0.isInstalled || $0.agent.id == session.agent } }
     var notInstalled: [AgentAvailability] { agents.filter { !$0.isInstalled && $0.agent.id != session.agent } }
@@ -169,6 +189,12 @@ struct AgentSwitcherPanel: View {
 
     func fixProvider() {
         if !providers.contains(where: { $0.id == provider }) { provider = "default" }
+    }
+
+    /// Provider novo: o modelo passa a ser o padrão dele (ou o da CLI, vazio).
+    func providerChanged() {
+        let same = provider == (session.provider ?? "default")
+        modelName = (same ? session.model : nil) ?? providerModels.first ?? ""
     }
 
     func apply() {
@@ -221,7 +247,7 @@ struct AgentOption: View {
                         .font(.system(size: 11)).foregroundStyle(p.tertiary).lineLimit(1)
                 }
                 Spacer()
-                if let update, hovering || current {
+                if let update {
                     IconButton(symbol: "arrow.clockwise", help: "Atualizar \(item.agent.name): \(item.agent.updateCommand ?? "")", size: 11, action: update)
                 }
                 if !item.isInstalled && item.agent.install != nil {

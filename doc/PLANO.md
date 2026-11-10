@@ -172,7 +172,7 @@ env  = { OPENAI_BASE_URL = "http://localhost:11434/v1", OPENAI_API_KEY = "ollama
 models = ["qwen3-coder"]
 
 [providers.assinatura]
-name = "Login da própria CLI"   # sem env: usa o login que a CLI já tem
+name = "Conta do agente"   # sem env: usa o login que a CLI já tem
 ```
 
 Os endereços acima são exemplos e serão conferidos na documentação de cada serviço antes de virarem presets.

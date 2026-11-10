@@ -3,6 +3,9 @@
 ## 0.1.18
 
 - Sessão aberta sem tarefa (vazia) ganha nome a partir da primeira mensagem escrita no agente, no fim da primeira resposta. Antes ficava "sessão 4f66".
+- Menu de agente: botão de atualizar visível em todos os agentes instalados e "Atualizar todos os agentes".
+- Modelo já vem preenchido com o da sessão ou o padrão do provider, e muda junto com o provider; lista com os modelos do provider.
+- O provider padrão passa a se chamar "Conta do agente", com explicação: usa a conta ou a chave que a CLI já tem.
 
 ## 0.1.17
 

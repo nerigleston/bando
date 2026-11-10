@@ -128,7 +128,7 @@ struct NewSessionSheet: View {
     }
 
     var modelHint: String {
-        model.config?.providers[provider]?.models.first ?? "padrão do agente"
+        model.config?.providers[provider]?.models.first ?? "padrão da CLI"
     }
 
     func setDefaults() {

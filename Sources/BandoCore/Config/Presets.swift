@@ -547,7 +547,7 @@ public enum Presets {
     #
     # Sem env: a CLI usa o login que já tem (assinatura ou chave própria).
     [providers.default]
-    name = "Login da própria CLI"
+    name = "Conta do agente"
 
     # =============================================================================
     # Bando: mapeamento de providers de modelo (pesquisa de 09/11/2026)

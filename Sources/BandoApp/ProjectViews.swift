@@ -133,7 +133,7 @@ struct Composer: View {
     var options: some View {
         Form {
             Picker("Provider", selection: $provider) { ForEach(providers) { Text($0.name).tag($0.id) } }
-            TextField("Modelo", text: $modelName, prompt: Text(model.config?.providers[provider]?.models.first ?? "padrão do agente"))
+            TextField("Modelo", text: $modelName, prompt: Text("padrão da CLI"))
             if currentProject?.isGeneral != true {
                 Toggle("Worktree separado", isOn: $useWorktree)
                 if useWorktree { TextField("Branch", text: $branch, prompt: Text("bando/<nome>")) }
@@ -145,6 +145,8 @@ struct Composer: View {
         }
         .formStyle(.grouped)
         .frame(width: 360)
+        // Provider novo: o modelo passa a ser o padrão dele (vazio = o da CLI).
+        .onChange(of: provider) { _, p in modelName = model.config?.providers[p]?.models.first ?? "" }
     }
 
     func create() {
