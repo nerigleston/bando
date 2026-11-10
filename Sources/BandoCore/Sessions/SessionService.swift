@@ -136,7 +136,7 @@ public final class SessionService: @unchecked Sendable {
     /// Abre a sessão tmux rodando `bando run`, que inicia o agente.
     public func start(_ session: Session, mode: StartMode) throws {
         let tmux = try Tmux(server: session.tmuxServer)
-        guard !tmux.hasSession(session.tmuxName) else { return }
+        if try isAlreadyRunning(session, tmux: tmux) { return }
         var args = ["run", session.id]
         switch mode {
         case .fresh: break
@@ -163,6 +163,21 @@ public final class SessionService: @unchecked Sendable {
             try? transition(session.id, to: .error, kind: "start-failed", detail: error.localizedDescription)
             throw error
         }
+    }
+
+    /// true se o agente da sessão ainda está rodando no tmux. Quando o agente
+    /// saiu, o supervisor deixa um shell no worktree e a sessão do tmux continua
+    /// existindo: esse shell é fechado aqui para o agente poder abrir de novo.
+    /// Recusa se o usuário estiver rodando outro programa nesse terminal.
+    func isAlreadyRunning(_ session: Session, tmux: Tmux) throws -> Bool {
+        guard tmux.hasSession(session.tmuxName) else { return false }
+        if session.status.isLive || session.status == .queued { return true }
+        let command = tmux.foregroundCommand(session.tmuxName) ?? ""
+        guard Tmux.isIdleShell(command) else {
+            throw BandoError.invalid("O terminal da sessão \(session.name) está rodando \(command). Feche esse programa antes de retomar.")
+        }
+        try tmux.kill(session.tmuxName)
+        return false
     }
 
     public enum StartMode: Sendable, Equatable {

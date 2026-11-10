@@ -71,6 +71,22 @@ public struct Tmux: Sendable {
         guard r.ok else { throw BandoError.command("tmux pipe-pane", r.stderr) }
     }
 
+    /// Nome do processo em primeiro plano no painel ativo da sessão (ex.: "zsh",
+    /// "node"), ou nil se a sessão não existe.
+    public func foregroundCommand(_ name: String) -> String? {
+        guard let r = try? tmux(["display-message", "-p", "-t", "=\(name):", "#{pane_current_command}"]), r.ok else { return nil }
+        let cmd = r.trimmed
+        return cmd.isEmpty ? nil : cmd
+    }
+
+    /// O painel está só com um shell parado no prompt (nada rodando nele).
+    public static func isIdleShell(_ command: String, userShell: String? = ProcessInfo.processInfo.environment["SHELL"]) -> Bool {
+        let name = command.hasPrefix("-") ? String(command.dropFirst()) : command
+        var shells: Set<String> = ["zsh", "bash", "fish", "sh", "dash", "ksh", "tcsh", "nu"]
+        if let userShell { shells.insert((userShell as NSString).lastPathComponent) }
+        return shells.contains(name)
+    }
+
     public func listSessions() -> [String] {
         guard let r = try? tmux(["list-sessions", "-F", "#{session_name}"]), r.ok else { return [] }
         return r.trimmed.split(separator: "\n").map(String.init)

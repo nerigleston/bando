@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.1.24
+
+- Retomar volta a funcionar depois que o agente sai. O shell que fica no terminal da sessão impedia o `bando resume` (e o botão Retomar) de abrir o agente de novo, sem aviso. Agora esse shell é fechado e o agente abre na mesma conversa. Se houver outro programa rodando nesse terminal, o Bando avisa qual é e não fecha nada.
+
 ## 0.1.23
 
 - Ao fechar e abrir o app, ele volta para a sessão que estava aberta (antes ia para a mais urgente). Grade, colunas e sessões da grade continuam guardadas.

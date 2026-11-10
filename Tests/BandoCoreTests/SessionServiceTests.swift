@@ -119,4 +119,49 @@ struct SessionServiceTests {
         #expect(session?.usesWorktree == false)
         #expect(usage == 0)
     }
+
+    /// Sessão parada no estado dado, num servidor tmux só deste teste.
+    func sessionInTmux(_ status: SessionStatus, running command: [String]) throws -> (Session, Tmux) {
+        let dir = try folder("retomar-\(UUID().uuidString.prefix(4))")
+        let project = try service.ensureProject(at: dir.path)
+        var s = try service.create(.init(project: project, prompt: "", agent: "shell", useWorktree: false, startNow: false))
+        let tmux = try Tmux(server: "bando-teste-\(UUID().uuidString.prefix(8))")
+        s.tmuxName = "sessao"
+        s.status = status
+        try tmux.newSession(name: s.tmuxName, cwd: dir.path, command: command)
+        return (s, tmux)
+    }
+
+    @Test("retomar depois que o agente saiu fecha o shell que sobrou no tmux")
+    func resumeAfterExitClosesLeftoverShell() throws {
+        let (s, tmux) = try sessionInTmux(.error, running: ["/bin/zsh", "-f"])
+        defer { _ = try? tmux.tmux(["kill-server"]) }
+        #expect(try service.isAlreadyRunning(s, tmux: tmux) == false)
+        #expect(tmux.hasSession(s.tmuxName) == false)
+    }
+
+    @Test("retomar recusa quando o terminal da sessão está rodando outro programa")
+    func resumeRefusesWhenTerminalIsBusy() throws {
+        let (s, tmux) = try sessionInTmux(.error, running: ["/bin/sleep", "30"])
+        defer { _ = try? tmux.tmux(["kill-server"]) }
+        #expect(throws: BandoError.self) { try service.isAlreadyRunning(s, tmux: tmux) }
+        #expect(tmux.hasSession(s.tmuxName))
+    }
+
+    @Test("sessão com agente vivo não é reiniciada")
+    func liveSessionIsLeftAlone() throws {
+        let (s, tmux) = try sessionInTmux(.working, running: ["/bin/zsh", "-f"])
+        defer { _ = try? tmux.tmux(["kill-server"]) }
+        #expect(try service.isAlreadyRunning(s, tmux: tmux))
+        #expect(tmux.hasSession(s.tmuxName))
+    }
+
+    @Test("shell de login conta como terminal ocioso")
+    func idleShellNames() {
+        #expect(Tmux.isIdleShell("zsh", userShell: nil))
+        #expect(Tmux.isIdleShell("-zsh", userShell: nil))
+        #expect(Tmux.isIdleShell("xonsh", userShell: "/opt/bin/xonsh"))
+        #expect(Tmux.isIdleShell("node", userShell: "/bin/zsh") == false)
+        #expect(Tmux.isIdleShell("claude", userShell: "/bin/zsh") == false)
+    }
 }
