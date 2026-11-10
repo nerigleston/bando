@@ -38,6 +38,15 @@ final class AppModel {
     var gridCells: [String?] = []
     var focusedCell = 0
     var showInspector = false
+    /// Painel de arquivos à direita da sessão. Guardado entre aberturas do app.
+    var showFiles = UserDefaults.standard.bool(forKey: "showFiles") {
+        didSet { UserDefaults.standard.set(showFiles, forKey: "showFiles") }
+    }
+    var filesWidth: CGFloat = UserDefaults.standard.object(forKey: "filesWidth") as? CGFloat ?? 280 {
+        didSet { UserDefaults.standard.set(filesWidth, forKey: "filesWidth") }
+    }
+    /// Arquivo aberto em cada sessão (id da sessão → caminho absoluto).
+    var openFiles: [String: String] = [:]
     var showSidebar = true
     var showNewSession = false
     var showPalette = false

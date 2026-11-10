@@ -1,5 +1,10 @@
 # Mudanças
 
+## 0.1.13
+
+- Painel de arquivos à direita da sessão (⌘E): árvore do worktree sem o que o git ignora, marcação do que mudou e visualização do arquivo em aba ao lado do terminal, com busca (⌘F). Só leitura.
+- Testes do serviço de sessões: pasta sem git, worktree em repositório, projeto Geral, migração e importação do General do Xirp.
+
 ## 0.1.12
 
 - Instalação e atualizações pelo domínio do site: `curl -fsSL https://bando.nerifilho.com.br/install.sh | bash` e download em https://bando.nerifilho.com.br/download.

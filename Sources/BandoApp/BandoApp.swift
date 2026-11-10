@@ -51,6 +51,8 @@ struct BandoApp: App {
                     .disabled(model.selectedSession == nil || model.selectedSession?.status.isLive == true)
                 Button("Mostrar no Finder") { if let s = model.selectedSession { model.reveal(s) } }
                     .keyboardShortcut("e", modifiers: [.command, .shift])
+                Button(model.showFiles ? "Esconder arquivos" : "Mostrar arquivos") { model.showFiles.toggle() }
+                    .keyboardShortcut("e", modifiers: .command)
                 Divider()
                 Button("Recarregar configuração") { Task { await model.reload() } }
             }

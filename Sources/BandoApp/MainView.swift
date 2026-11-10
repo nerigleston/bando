@@ -300,7 +300,8 @@ struct ShortcutsSheet: View {
     static let groups: [(String, [(String, String)])] = [
         ("Sessões", [("⌘N", "Nova sessão"), ("⌘K", "Buscar sessão"), ("⌘J", "Próxima esperando você"),
                      ("⌘1 … ⌘9", "Ir para a sessão"), ("⌘.", "Parar sessão"), ("⇧⌘R", "Retomar sessão"),
-                     ("⇧⌘E", "Mostrar no Finder"), ("clique duplo", "Abrir só a sessão (na grade)")]),
+                     ("⇧⌘E", "Mostrar no Finder"), ("⌘E", "Painel de arquivos"),
+                     ("⌘F", "Buscar no arquivo aberto"), ("clique duplo", "Abrir só a sessão (na grade)")]),
         ("Grade", [("⌥⌘G", "Alternar grade"), ("⌥⌘1 … ⌥⌘7", "Grade 1×1 até 4×4"),
                    ("arrastar divisória", "Ajustar tamanho"), ("clique duplo na divisória", "Igualar tamanhos")]),
         ("Janelas", [("⇧⌘U", "Uso e custo"), ("⌥⌘R", "Relatórios")]),
@@ -413,6 +414,8 @@ struct SessionPane: View {
     var cellIndex: Int? = nil
     @State private var hovering = false
     @State private var menuOpen = false
+    /// Com um arquivo aberto, qual aba aparece: o arquivo ou o terminal.
+    @State private var showingFile = true
 
     var inGrid: Bool { cellIndex != nil }
 
@@ -420,10 +423,41 @@ struct SessionPane: View {
         VStack(spacing: 0) {
             if inGrid { gridHeader } else { header }
             Rectangle().fill(p.border).frame(height: 1)
-            terminal
+            if inGrid {
+                terminal
+            } else {
+                HStack(spacing: 0) {
+                    main
+                    if model.showFiles {
+                        FilesResizer()
+                        FilesPanel(session: session).frame(width: model.filesWidth)
+                    }
+                }
+            }
         }
         .background(model.theme?.background.color ?? p.card)
         .onHover { hovering = $0 }
+        .onChange(of: model.openFiles[session.id]) { _, new in if new != nil { showingFile = true } }
+    }
+
+    /// Terminal e, quando há arquivo aberto, as abas com o arquivo. O terminal
+    /// fica montado por baixo para não reanexar o tmux a cada troca de aba.
+    @ViewBuilder var main: some View {
+        if let path = model.openFiles[session.id] {
+            VStack(spacing: 0) {
+                FileTabs(session: session, path: path, showingFile: showingFile) { showingFile = $0 }
+                Rectangle().fill(p.border).frame(height: 1)
+                ZStack {
+                    terminal.opacity(showingFile ? 0 : 1).allowsHitTesting(!showingFile)
+                    if showingFile {
+                        FileViewer(path: path, stamp: session.status)
+                            .background(model.theme?.background.color ?? p.card)
+                    }
+                }
+            }
+        } else {
+            terminal
+        }
     }
 
     @ViewBuilder var terminal: some View {
@@ -471,6 +505,10 @@ struct SessionPane: View {
                 IconButton(symbol: "play.circle", help: "Retomar (⇧⌘R)", size: 15) { model.resumeSession(session.id) }
             }
             IconButton(symbol: "folder", help: "Mostrar no Finder (⇧⌘E)", size: 15) { model.reveal(session) }
+            IconButton(symbol: model.showFiles ? "sidebar.right" : "doc.text.magnifyingglass",
+                       help: model.showFiles ? "Esconder arquivos (⌘E)" : "Arquivos (⌘E)", size: 15) {
+                model.showFiles.toggle()
+            }
             SessionActionsButton(session: session)
         }
         .padding(.leading, 14).padding(.trailing, 8)
