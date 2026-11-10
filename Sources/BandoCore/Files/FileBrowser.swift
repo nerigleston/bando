@@ -103,17 +103,18 @@ public enum FileBrowser {
 
     /// Salva o texto. Com `expecting`, recusa se o conteúdo no disco não for mais
     /// esse (o agente pode ter editado). Mantém as permissões (um script continua
-    /// executável).
+    /// executável). Num link simbólico, grava no arquivo de destino: a gravação
+    /// atômica renomeia por cima do caminho e trocaria o link por um arquivo.
     public static func write(_ text: String, to path: String, expecting original: String? = nil) throws {
-        let url = URL(fileURLWithPath: path)
-        let attrs = try FileManager.default.attributesOfItem(atPath: path)
+        let url = URL(fileURLWithPath: path).resolvingSymlinksInPath()
+        let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
         if let original {
             let current = try Data(contentsOf: url)
             if String(decoding: current, as: UTF8.self) != original { throw WriteError.changedOnDisk }
         }
         try Data(text.utf8).write(to: url, options: .atomic)
         if let perms = attrs[.posixPermissions] {
-            try? FileManager.default.setAttributes([.posixPermissions: perms], ofItemAtPath: path)
+            try? FileManager.default.setAttributes([.posixPermissions: perms], ofItemAtPath: url.path)
         }
     }
 

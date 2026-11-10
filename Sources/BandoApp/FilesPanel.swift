@@ -229,7 +229,7 @@ struct FileTabs: View {
     var body: some View {
         HStack(spacing: 2) {
             tab(title: "Terminal", symbol: "terminal", active: !showingFile) { select(false) }
-            tab(title: (path as NSString).lastPathComponent + (model.dirtyFiles.contains(path) ? " •" : ""),
+            tab(title: (path as NSString).lastPathComponent + (model.drafts[path] != nil ? " •" : ""),
                 symbol: "doc.text", active: showingFile) { select(true) }
             IconButton(symbol: "xmark", help: "Fechar arquivo", size: 10) {
                 model.setOpenFile(nil, for: session.id)
@@ -294,10 +294,13 @@ struct FileViewer: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .task(id: "\(path)|\(stamp.rawValue)") { await load() }
-        .onChange(of: dirty) { _, d in
-            if d { model.dirtyFiles.insert(path) } else { model.dirtyFiles.remove(path) }
-        }
-        .onChange(of: path) { old, _ in model.dirtyFiles.remove(old) }
+        .onChange(of: draft) { _, _ in syncDraft() }
+        .onChange(of: saved) { _, _ in syncDraft() }
+    }
+
+    /// Guarda o rascunho no modelo enquanto houver mudança não salva.
+    func syncDraft() {
+        if dirty, let saved { model.drafts[path] = FileDraft(saved: saved, text: draft) } else { model.drafts[path] = nil }
     }
 
     /// Faixa fina no topo: só aparece com mudança, conflito ou erro.
@@ -337,6 +340,12 @@ struct FileViewer: View {
     func load(force: Bool = false) async {
         // Edição pendente: não troca o texto da tela por baixo de quem edita.
         if dirty && !force { return }
+        // Rascunho de antes de trocar de aba ou de sessão: volta com ele.
+        if !force, let d = model.drafts[path] {
+            content = .text(d.text); error = nil; editable = true
+            saved = d.saved; draft = d.text; saveError = nil
+            return
+        }
         let path = path
         let result = await Task.detached { () -> Result<(FileContent, Bool), Error> in
             Result { (try FileBrowser.read(path), FileBrowser.isUTF8Text(path)) }

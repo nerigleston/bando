@@ -52,19 +52,20 @@ final class AppModel {
     }
     /// Arquivo aberto em cada sessão (id da sessão → caminho absoluto).
     var openFiles: [String: String] = [:]
-    /// Arquivos com edição não salva (caminho absoluto).
-    var dirtyFiles: Set<String> = []
+    /// Edições não salvas por arquivo (caminho absoluto). Ficam aqui, e não no
+    /// visualizador, para sobreviver à troca de aba e de sessão.
+    var drafts: [String: FileDraft] = [:]
 
     /// Troca ou fecha o arquivo da sessão; com edição não salva, pergunta antes.
     func setOpenFile(_ path: String?, for sessionId: String) {
-        if let current = openFiles[sessionId], current != path, dirtyFiles.contains(current) {
+        if let current = openFiles[sessionId], current != path, drafts[current] != nil {
             let alert = NSAlert()
             alert.messageText = "Descartar as mudanças em \((current as NSString).lastPathComponent)?"
             alert.informativeText = "Você editou este arquivo e não salvou."
             alert.addButton(withTitle: "Cancelar")
             alert.addButton(withTitle: "Descartar").hasDestructiveAction = true
             guard alert.runModal() == .alertSecondButtonReturn else { return }
-            dirtyFiles.remove(current)
+            drafts[current] = nil
         }
         openFiles[sessionId] = path
     }
@@ -787,4 +788,11 @@ enum Prefs {
            let test = UserDefaults(suiteName: "io.github.nerigleston.bando.teste") { return test }
         return .standard
     }()
+}
+
+/// Texto editado e ainda não salvo de um arquivo, com a versão do disco em que
+/// a edição começou (para saber se o agente mudou o arquivo no meio).
+struct FileDraft: Equatable {
+    var saved: String
+    var text: String
 }

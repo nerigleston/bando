@@ -67,6 +67,21 @@ struct FileBrowserTests {
         #expect(try String(contentsOfFile: path, encoding: .utf8) == "echo 3\n")
     }
 
+    @Test("salvar um link simbólico grava no destino e mantém o link")
+    func writeThroughSymlink() throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        FileManager.default.createFile(atPath: "\(dir)/AGENTS.md", contents: Data("antes\n".utf8))
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: "\(dir)/AGENTS.md")
+        try FileManager.default.createSymbolicLink(atPath: "\(dir)/CLAUDE.md", withDestinationPath: "AGENTS.md")
+
+        try FileBrowser.write("depois\n", to: "\(dir)/CLAUDE.md", expecting: "antes\n")
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: "\(dir)/CLAUDE.md") == "AGENTS.md")
+        #expect(try String(contentsOfFile: "\(dir)/AGENTS.md", encoding: .utf8) == "depois\n")
+        let perms = try FileManager.default.attributesOfItem(atPath: "\(dir)/AGENTS.md")[.posixPermissions] as? Int
+        #expect(perms == 0o644)
+    }
+
     @Test("só texto UTF-8 válido é editável")
     func utf8() throws {
         let dir = try tempDir()
