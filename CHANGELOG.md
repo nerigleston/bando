@@ -1,5 +1,11 @@
 # Mudanças
 
+## 0.1.25
+
+- O visualizador de arquivos (aba ao lado do Terminal) edita e salva texto UTF-8, com desfazer (⌘Z), busca (⌘F) e ⌘S. A aba ganha um ponto quando há mudança não salva. Se o agente mudou o arquivo depois que você abriu, o Bando não sobrescreve sem perguntar: oferece Recarregar ou Sobrescrever. Arquivo que não é UTF-8 continua só leitura. Contribuição de @webdevpls (#5).
+- A edição não salva sobrevive à troca para a aba Terminal e para outra sessão. Fechar o app ainda descarta o que não foi salvo.
+- Salvar um link simbólico (por exemplo `CLAUDE.md` apontando para `AGENTS.md`) grava no arquivo de destino e mantém o link.
+
 ## 0.1.24
 
 - Retomar volta a funcionar depois que o agente sai. O shell que fica no terminal da sessão impedia o `bando resume` (e o botão Retomar) de abrir o agente de novo, sem aviso. Agora esse shell é fechado e o agente abre na mesma conversa. Se houver outro programa rodando nesse terminal, o Bando avisa qual é e não fecha nada.
