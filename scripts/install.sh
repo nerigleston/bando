@@ -1,7 +1,7 @@
 #!/bin/bash
 # Instala ou atualiza o Bando a partir da última versão publicada.
 #
-#   curl -fsSL https://bando-releases.s3.amazonaws.com/install.sh | bash
+#   curl -fsSL https://bando.nerifilho.com.br/install.sh | bash
 #
 # Baixa com o curl (sem a marca de quarentena dos navegadores), então o macOS
 # abre o app sem o aviso de desenvolvedor não identificado. Depois disso, o

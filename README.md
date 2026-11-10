@@ -94,12 +94,12 @@ Os demais (Cursor, Gemini CLI, Qwen Code, Crush, Aider, Goose, Amp, Copilot CLI,
 Requisitos: macOS 14 ou mais recente, [tmux](https://github.com/tmux/tmux) 3.3+ (`brew install tmux`) e git.
 
 ```bash
-curl -fsSL https://bando-releases.s3.amazonaws.com/install.sh | bash
+curl -fsSL https://bando.nerifilho.com.br/install.sh | bash
 ```
 
 O script baixa a última versão, instala em `/Applications/Bando.app` e põe o comando `bando` em `~/.local/bin`. Daí em diante o app se atualiza sozinho: poucos minutos depois de uma versão nova sair, ele avisa e instala com um clique.
 
-Download direto: [Bando.zip](https://bando-releases.s3.amazonaws.com/latest/Bando.zip). Baixado pelo navegador, o macOS avisa que o desenvolvedor não foi identificado na primeira abertura (o app ainda não é notarizado pela Apple); libere em Ajustes do Sistema > Privacidade e Segurança > "Abrir mesmo assim". Pelo script esse aviso não aparece.
+Download direto: [Bando.dmg](https://bando.nerifilho.com.br/download) (abra e arraste para Aplicativos) ou [Bando.zip](https://bando.nerifilho.com.br/download.zip). Site: [bando.nerifilho.com.br](https://bando.nerifilho.com.br). Baixado pelo navegador, o macOS avisa que o desenvolvedor não foi identificado na primeira abertura (o app ainda não é notarizado pela Apple); libere em Ajustes do Sistema > Privacidade e Segurança > "Abrir mesmo assim". Pelo script esse aviso não aparece.
 
 A partir do código (Swift 6, Xcode ou Command Line Tools):
 

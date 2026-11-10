@@ -35,6 +35,9 @@ permissions:
 env:
   SPARKLE_VERSION: "2.10.1"
   RELEASES_URL: ${{ vars.BANDO_RELEASES_URL }}
+  # Endereços públicos no domínio do site (a Vercel serve o appcast e o
+  # install.sh do S3 e redireciona os downloads). Os arquivos continuam no S3.
+  SITE_URL: https://bando.nerifilho.com.br
   BUCKET: bando-releases
   HAS_NOTARY: ${{ secrets.NOTARY_APPLE_ID != '' }}
 
@@ -105,7 +108,7 @@ jobs:
         env:
           BANDO_VERSION: ${{ steps.v.outputs.version }}
           BANDO_BUILD: ${{ steps.v.outputs.build }}
-          BANDO_FEED_URL: ${{ vars.BANDO_RELEASES_URL }}/appcast.xml
+          BANDO_FEED_URL: https://bando.nerifilho.com.br/appcast.xml
           BANDO_ED_PUBLIC_KEY: ${{ vars.SPARKLE_ED_PUBLIC_KEY }}
           BANDO_SIGN_IDENTITY: ${{ steps.cert.outputs.identity }}
           BANDO_UNIVERSAL: "1"
@@ -199,6 +202,6 @@ jobs:
           [ -n "${{ steps.v.outputs.channel }}" ] && PRE="--prerelease"
           NOTES="pages/updates/Bando-$V.md"
           [ -s "$NOTES" ] || echo "Versão $V" > "$NOTES"
-          printf '\n\nInstalar ou atualizar:\n\n```\ncurl -fsSL %s/install.sh | bash\n```\n' "$RELEASES_URL" >> "$NOTES"
+          printf '\n\nInstalar ou atualizar:\n\n```\ncurl -fsSL %s/install.sh | bash\n```\n\nOu baixe o [Bando.dmg](%s/download).\n' "$SITE_URL" "$SITE_URL" >> "$NOTES"
           gh release create "$GITHUB_REF_NAME" dist/* $PRE \
             --title "Bando $V" --notes-file "$NOTES"
