@@ -1,13 +1,12 @@
 # Mudanças
 
-## 0.1.11
+## 0.1.12
 
-- Com "baixar e instalar automaticamente" ligado, a versão nova era baixada e só entrava quando o app fechava, sem aviso. Agora chega a notificação "Bando X pronto para instalar", e o clique reinicia e instala na hora. O menu Bando também mostra "Reiniciar e instalar a X".
 - Instalação e atualizações pelo domínio do site: `curl -fsSL https://bando.nerifilho.com.br/install.sh | bash` e download em https://bando.nerifilho.com.br/download.
 
 ## 0.1.11
 
-- Com "baixar e instalar automaticamente" ligado, a versão nova era baixada e só entrava quando o app fechava, sem aviso. Agora chega a notificação "Bando X pronto para instalar"; o clique reinicia e instala na hora. O menu Bando também mostra "Reiniciar e instalar a X".
+- Com "baixar e instalar automaticamente" ligado, a versão nova era baixada e só entrava quando o app fechava, sem aviso. Agora chega a notificação "Bando X pronto para instalar", e o clique reinicia e instala na hora. O menu Bando também mostra "Reiniciar e instalar a X".
 
 ## 0.1.10
 
