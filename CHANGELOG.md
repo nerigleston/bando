@@ -1,5 +1,10 @@
 # Mudanças
 
+## 0.1.23
+
+- Ao fechar e abrir o app, ele volta para a sessão que estava aberta (antes ia para a mais urgente). Grade, colunas e sessões da grade continuam guardadas.
+- Cópias de teste do app (abertas com BANDO_STATE_DIR) usam preferências separadas e não mexem mais nas do Bando de uso diário.
+
 ## 0.1.22
 
 - O título automático é gerado pelo agente e pelo provider da própria sessão (Claude Code, Codex, OpenCode ou Gemini CLI, com as chaves e o modelo padrão do provider), e não mais sempre pelo Claude. Com a conta do próprio agente, o Claude Code usa o Haiku. Agente sem pergunta única no catálogo (`title`) fica com o nome provisório.

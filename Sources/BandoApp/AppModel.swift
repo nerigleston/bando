@@ -20,12 +20,17 @@ final class AppModel {
     var loadError: String?
 
     // Seleção e layout
-    var selection: String?
+    /// Sessão aberta. Guardada para reabrir o app no mesmo lugar.
+    var selection: String? {
+        didSet { if let selection { Prefs.store.set(selection, forKey: "selection") } }
+    }
+    /// Sessão que estava aberta quando o app fechou; usada uma vez, ao carregar.
+    @ObservationIgnored private var restoredSelection = Prefs.store.string(forKey: "selection")
     var sidebarMode: SidebarMode = .byProject
     var sidebarWidth: CGFloat = 250
     /// Esmaecer os painéis sem foco na grade. Guardado entre aberturas do app.
-    var dimUnfocused = UserDefaults.standard.object(forKey: "dimUnfocused") as? Bool ?? true {
-        didSet { UserDefaults.standard.set(dimUnfocused, forKey: "dimUnfocused") }
+    var dimUnfocused = Prefs.store.object(forKey: "dimUnfocused") as? Bool ?? true {
+        didSet { Prefs.store.set(dimUnfocused, forKey: "dimUnfocused") }
     }
     /// Grade ligada (senão mostra só a sessão selecionada).
     var gridMode = false
@@ -39,11 +44,11 @@ final class AppModel {
     var focusedCell = 0
     var showInspector = false
     /// Painel de arquivos à direita da sessão. Guardado entre aberturas do app.
-    var showFiles = UserDefaults.standard.bool(forKey: "showFiles") {
-        didSet { UserDefaults.standard.set(showFiles, forKey: "showFiles") }
+    var showFiles = Prefs.store.bool(forKey: "showFiles") {
+        didSet { Prefs.store.set(showFiles, forKey: "showFiles") }
     }
-    var filesWidth: CGFloat = UserDefaults.standard.object(forKey: "filesWidth") as? CGFloat ?? 280 {
-        didSet { UserDefaults.standard.set(filesWidth, forKey: "filesWidth") }
+    var filesWidth: CGFloat = Prefs.store.object(forKey: "filesWidth") as? CGFloat ?? 280 {
+        didSet { Prefs.store.set(filesWidth, forKey: "filesWidth") }
     }
     /// Arquivo aberto em cada sessão (id da sessão → caminho absoluto).
     var openFiles: [String: String] = [:]
@@ -73,8 +78,8 @@ final class AppModel {
     var updateReady: String?
     @ObservationIgnored private var updateObserver: NSObjectProtocol?
     var handoffDefault: HandoffMode {
-        get { HandoffMode(rawValue: UserDefaults.standard.string(forKey: "handoffDefault") ?? "") ?? .summary }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: "handoffDefault") }
+        get { HandoffMode(rawValue: Prefs.store.string(forKey: "handoffDefault") ?? "") ?? .summary }
+        set { Prefs.store.set(newValue.rawValue, forKey: "handoffDefault") }
     }
     var newSessionProject: String?
 
@@ -106,8 +111,8 @@ final class AppModel {
     var showImportWorkspace = false
     /// Agente usado por último na caixa de nova sessão.
     var lastAgent: String {
-        get { UserDefaults.standard.string(forKey: "lastAgent") ?? "claude" }
-        set { UserDefaults.standard.set(newValue, forKey: "lastAgent") }
+        get { Prefs.store.string(forKey: "lastAgent") ?? "claude" }
+        set { Prefs.store.set(newValue, forKey: "lastAgent") }
     }
 
     func openComposer(project: String? = nil) {
@@ -117,7 +122,7 @@ final class AppModel {
     func openProject(_ id: String) { route = .project(id); sidebarMode = .projects }
 
     init() {
-        let d = UserDefaults.standard
+        let d = Prefs.store
         themePreference = d.string(forKey: "themePreference") ?? "system"
         lightTheme = d.string(forKey: "lightTheme") ?? BandoConfig.defaultLightTheme
         darkTheme = d.string(forKey: "darkTheme") ?? BandoConfig.defaultDarkTheme
@@ -131,7 +136,7 @@ final class AppModel {
     }
 
     private func save() {
-        let d = UserDefaults.standard
+        let d = Prefs.store
         d.set(themePreference, forKey: "themePreference")
         d.set(lightTheme, forKey: "lightTheme")
         d.set(darkTheme, forKey: "darkTheme")
@@ -246,6 +251,9 @@ final class AppModel {
         // Grade ligada mas vazia (ex.: ao abrir o app): preenche com as ativas.
         if gridMode && gridSessions.isEmpty && sessions.contains(where: \.status.isLive) { autoFillGrid() }
         // Nunca deixa o centro vazio: abre a sessão mais urgente.
+        // Ao abrir: volta para a sessão que estava aberta, se ainda existir.
+        if selection == nil, let r = restoredSelection, sessions.contains(where: { $0.id == r }) { selection = r }
+        if !sessions.isEmpty { restoredSelection = nil }
         if selection == nil, let first = orderedSessions.first ?? finishedSessions.first { selection = first.id }
         updateDockBadge()
     }
@@ -751,4 +759,16 @@ struct StopRequest: Identifiable {
 struct DeleteRequest: Identifiable {
     let id = UUID()
     let sessionIds: [String]
+}
+
+
+/// Preferências do app. Cópias de teste (abertas com BANDO_STATE_DIR) usam um
+/// domínio separado, para não mexer nas preferências do Bando de uso diário.
+enum Prefs {
+    // UserDefaults é seguro entre threads (documentação da Apple).
+    nonisolated(unsafe) static let store: UserDefaults = {
+        if ProcessInfo.processInfo.environment["BANDO_STATE_DIR"] != nil,
+           let test = UserDefaults(suiteName: "io.github.nerigleston.bando.teste") { return test }
+        return .standard
+    }()
 }
