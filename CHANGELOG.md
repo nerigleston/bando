@@ -7,6 +7,8 @@
 
 ## 0.1.19
 
+Não publicada (o CI foi cancelado por um commit seguinte); entrou na 0.1.20.
+
 - Arrastar arquivo ou pasta do Finder para o terminal cola o caminho, com espaços e caracteres especiais protegidos (vários de uma vez também). Imagem arrastada vira caminho que o Claude Code lê. Texto e links arrastados entram como estão. Nada é executado: o Enter é seu.
 
 ## 0.1.18
