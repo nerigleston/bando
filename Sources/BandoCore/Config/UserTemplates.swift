@@ -30,6 +30,7 @@ public enum UserTemplates {
     #   idle_after  segundos sem saída até checar o estado (padrão 4)
     #   version     argumentos para mostrar a versão (padrão ["--version"])
     #   install     comando de instalação mostrado quando falta a CLI
+    #   update      comando para atualizar a CLI (sem ele, roda install de novo)
     #   enabled     false esconde o agente
     #
     # Placeholders: {prompt} {model} {native_id} {new_id} {session_id} {worktree} {branch}

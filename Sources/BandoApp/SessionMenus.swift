@@ -53,7 +53,8 @@ struct AgentSwitcherPanel: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(installed, id: \.agent.id) { a in
-                        AgentOption(item: a, selected: a.agent.id == agent, current: a.agent.id == session.agent) {
+                        AgentOption(item: a, selected: a.agent.id == agent, current: a.agent.id == session.agent,
+                                    update: a.isInstalled && a.agent.updateCommand != nil ? { runInTerminal(a.agent.updateCommand) } : nil) {
                             agent = a.agent.id; fixProvider()
                         }
                     }
@@ -95,8 +96,13 @@ struct AgentSwitcherPanel: View {
                     }
                     VStack(alignment: .leading, spacing: 6) {
                         FieldLabel("Modelo", hint: "opcional")
-                        TextField(model.config?.providers[provider]?.models.first ?? "padrão", text: $modelName).fieldBox()
+                        TextField(model.config?.providers[provider]?.models.first ?? "padrão do agente", text: $modelName).fieldBox()
                     }
+                }
+                if let current = session.model, modelName.isEmpty, agent == session.agent {
+                    // Vazio = modelo padrão do agente. O campo começa vazio mesmo que a
+                    // sessão tenha escolhido um modelo antes.
+                    Text("Agora: \(current). Vazio volta ao padrão.").font(.system(size: 11)).foregroundStyle(p.tertiary)
                 }
                 if agent != session.agent {
                     VStack(alignment: .leading, spacing: 6) {
@@ -125,7 +131,7 @@ struct AgentSwitcherPanel: View {
         .onAppear {
             agent = session.agent
             provider = session.provider ?? "default"
-            modelName = session.model ?? ""
+            modelName = ""
             handoff = model.handoffDefault
         }
     }
@@ -146,7 +152,8 @@ struct AgentSwitcherPanel: View {
     }
 
     var changed: Bool {
-        agent != session.agent || provider != (session.provider ?? "default") || modelName != (session.model ?? "")
+        agent != session.agent || provider != (session.provider ?? "default")
+            || (modelName.isEmpty ? nil : modelName) != session.model
     }
 
     var note: String {
@@ -173,8 +180,11 @@ struct AgentSwitcherPanel: View {
     }
 
     /// Instala num Terminal à parte, com o comando do preset à vista.
-    func install(_ a: AgentDefinition) {
-        guard let cmd = a.install else { return }
+    func install(_ a: AgentDefinition) { runInTerminal(a.install) }
+
+    /// Roda o comando num Terminal à parte, à vista (instalar ou atualizar).
+    func runInTerminal(_ command: String?) {
+        guard let cmd = command else { return }
         close()
         let script = "tell application \"Terminal\" to do script \"\(cmd.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\""
         NSAppleScript(source: script)?.executeAndReturnError(nil)
@@ -187,6 +197,8 @@ struct AgentOption: View {
     let item: AgentAvailability
     let selected: Bool
     let current: Bool
+    /// Atualizar a CLI (só para agentes instalados com comando de atualização).
+    var update: (() -> Void)? = nil
     let action: () -> Void
     @State private var hovering = false
 
@@ -209,6 +221,9 @@ struct AgentOption: View {
                         .font(.system(size: 11)).foregroundStyle(p.tertiary).lineLimit(1)
                 }
                 Spacer()
+                if let update, hovering || current {
+                    IconButton(symbol: "arrow.clockwise", help: "Atualizar \(item.agent.name): \(item.agent.updateCommand ?? "")", size: 11, action: update)
+                }
                 if !item.isInstalled && item.agent.install != nil {
                     Text("Instalar").font(.system(size: 11, weight: .medium)).foregroundStyle(p.secondary)
                         .padding(.horizontal, 6).padding(.vertical, 2)

@@ -1,5 +1,12 @@
 # Mudanças
 
+## 0.1.16
+
+- Reforma da interface: sessões em árvore sob o projeto na lateral, busca, modo Selecionar para parar ou apagar várias de uma vez, confirmação antes de parar ou apagar, modais e popovers no mesmo estilo e grade que escolhe o formato pela quantidade de sessões, com prévia ao arrastar. Contribuição de @webdevpls (#3).
+- Painel de arquivos: o começo das linhas ficava escondido embaixo dos números de linha. Os números agora ficam numa coluna à parte.
+- Troca de agente: o campo de modelo começa vazio (modelo padrão do agente) e mostra o modelo atual como dica.
+- Botão de atualizar em cada agente instalado, na troca de agente. Roda o comando de atualização num Terminal à parte (ex.: `claude update`); agentes sem comando próprio rodam a instalação de novo. Campo novo `update` no `agents.toml`.
+
 ## 0.1.15
 
 - Nome das sessões como no Xirp: um nome provisório na hora (começo da tarefa), depois o título que o Claude Code dá à conversa (inclusive o do /rename) ou, sem ele, um título curto gerado pelo Claude Haiku a partir da tarefa, no idioma dela. Nome dado por você nunca é trocado. O menu da sessão ganhou "Gerar nome de novo".

@@ -303,103 +303,25 @@ struct FileViewer: View {
     }
 }
 
-/// NSTextView só leitura: aguenta arquivos grandes melhor que um `Text`.
+/// Ponte SwiftUI para `CodeScrollView`.
 struct CodeTextView: NSViewRepresentable {
     let text: String
     let fontSize: Double
     let theme: ThemeDefinition?
 
-    func makeNSView(context: Context) -> NSScrollView {
-        let scroll = NSTextView.scrollableTextView()
-        scroll.drawsBackground = false
-        scroll.hasHorizontalScroller = true
-        guard let tv = scroll.documentView as? NSTextView else { return scroll }
-        tv.isEditable = false
-        tv.isSelectable = true
-        tv.isRichText = false
-        tv.usesFindBar = true
-        tv.isIncrementalSearchingEnabled = true
-        tv.drawsBackground = false
-        tv.textContainerInset = NSSize(width: 6, height: 8)
-        // Sem quebra de linha: código fica como está, com rolagem horizontal.
-        tv.isHorizontallyResizable = true
-        tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        tv.textContainer?.widthTracksTextView = false
-        tv.textContainer?.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        let ruler = LineNumberRuler(textView: tv)
-        scroll.verticalRulerView = ruler
-        scroll.hasVerticalRuler = true
-        scroll.rulersVisible = true
-        apply(to: scroll)
-        return scroll
+    func makeNSView(context: Context) -> CodeScrollView {
+        let view = CodeScrollView(frame: .zero)
+        apply(to: view)
+        return view
     }
 
-    func updateNSView(_ scroll: NSScrollView, context: Context) { apply(to: scroll) }
+    func updateNSView(_ view: CodeScrollView, context: Context) { apply(to: view) }
 
-    func apply(to scroll: NSScrollView) {
-        guard let tv = scroll.documentView as? NSTextView else { return }
-        let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
-        let fg = theme.map { NSColor($0.foreground.color) } ?? .textColor
-        if tv.string != text || tv.font != font {
-            let keep = tv.visibleRect.origin
-            tv.textStorage?.setAttributedString(NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: fg]))
-            tv.font = font
-            tv.scroll(keep)
-        }
-        tv.textColor = fg
-        if let sel = theme?.selection { tv.selectedTextAttributes = [.backgroundColor: NSColor(sel.color)] }
-        (scroll.verticalRulerView as? LineNumberRuler)?.font = NSFont.monospacedDigitSystemFont(ofSize: max(fontSize - 2, 8), weight: .regular)
-        scroll.verticalRulerView?.needsDisplay = true
-    }
-}
-
-/// Números de linha na régua vertical da NSTextView.
-final class LineNumberRuler: NSRulerView {
-    var font = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .regular)
-    private weak var textView: NSTextView?
-
-    init(textView: NSTextView) {
-        self.textView = textView
-        super.init(scrollView: textView.enclosingScrollView, orientation: .verticalRuler)
-        clientView = textView
-        ruleThickness = 40
-        NotificationCenter.default.addObserver(self, selector: #selector(redraw), name: NSView.boundsDidChangeNotification,
-                                               object: textView.enclosingScrollView?.contentView)
-    }
-
-    required init(coder: NSCoder) { fatalError("não usado") }
-
-    @objc func redraw() { needsDisplay = true }
-
-    override func drawHashMarksAndLabels(in rect: NSRect) {
-        guard let tv = textView, let lm = tv.layoutManager, let tc = tv.textContainer else { return }
-        let text = tv.string as NSString
-        let visible = tv.visibleRect
-        let glyphs = lm.glyphRange(forBoundingRect: visible, in: tc)
-        let chars = lm.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
-        // Número da primeira linha visível: conta as quebras antes dela.
-        var line = 1
-        text.enumerateSubstrings(in: NSRange(location: 0, length: chars.location),
-                                 options: [.byLines, .substringNotRequired]) { _, _, _, _ in line += 1 }
-        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.tertiaryLabelColor]
-        let width = "\(max(line, 1) + 9999)".count
-        let thickness = CGFloat(width) * font.maximumAdvancement.width + 14
-        if abs(thickness - ruleThickness) > 1 { ruleThickness = thickness }
-        var index = chars.location
-        let end = NSMaxRange(chars)
-        let inset = tv.textContainerInset.height
-        while index < end || (index == end && index == text.length && line == 1) {
-            let lineRange = text.lineRange(for: NSRange(location: index, length: 0))
-            let glyph = lm.glyphIndexForCharacter(at: min(index, max(text.length - 1, 0)))
-            var r = lm.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
-            r.origin.y += inset - visible.origin.y
-            let label = "\(line)" as NSString
-            let size = label.size(withAttributes: attrs)
-            label.draw(at: NSPoint(x: ruleThickness - size.width - 6, y: r.minY + (r.height - size.height) / 2), withAttributes: attrs)
-            if NSMaxRange(lineRange) <= index { break }
-            index = NSMaxRange(lineRange)
-            line += 1
-            if text.length == 0 { break }
-        }
+    func apply(to view: CodeScrollView) {
+        view.show(text: text,
+                  font: NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular),
+                  foreground: theme.map { NSColor($0.foreground.color) } ?? .textColor,
+                  background: theme.map { NSColor($0.background.color) } ?? .textBackgroundColor,
+                  selection: theme.map { NSColor($0.selection.color) })
     }
 }

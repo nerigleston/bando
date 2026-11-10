@@ -25,6 +25,14 @@ struct ConfigTests {
         #expect(c.userAgentIds == ["claude"])
     }
 
+    @Test("comando de atualizar: o do preset, ou o de instalar de novo")
+    func updateCommand() throws {
+        let c = try BandoConfig.load(userAgents: nil, userProviders: nil)
+        #expect(try c.agent("claude").updateCommand == "claude update")
+        let codex = try c.agent("codex")
+        #expect(codex.update == nil && codex.updateCommand == codex.install)
+    }
+
     @Test("agente novo do usuário")
     func userAgent() throws {
         let c = try BandoConfig.load(userAgents: """

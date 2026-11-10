@@ -47,6 +47,7 @@ public enum Presets {
     status   = "hooks"
     hooks    = "claude"
     install  = "curl -fsSL https://claude.ai/install.sh | bash"
+    update   = "claude update"
 
     # Fonte: codex --help (0.163.0) | verificado: sim
     # Hooks: já implementado no Bando como "codex"
@@ -88,6 +89,7 @@ public enum Presets {
     # variável exigem arquivo e pasta do root.
     waiting  = 'Do you trust the files in this folder\?|\(Use Enter to select\)|\(y/n\)'
     install  = "npm i -g @google/gemini-cli"
+    update   = "npm i -g @google/gemini-cli@latest"
 
     # Fonte: agy --help (1.5.3) + https://antigravity.google/docs/hooks?tab=cli | verificado: sim
     # Hooks: .agents/hooks.json (workspace) e ~/.gemini/config/hooks.json (global; ~/.gemini/antigravity-cli/settings.json NÃO é lido);
@@ -121,6 +123,7 @@ public enum Presets {
     continue = ["--continue"]
     status   = "silence"
     install  = "curl -fsSL https://opencode.ai/install | bash"
+    update   = "opencode upgrade"
 
     # Fonte: https://cursor.com/docs/cli/using + /docs/cli/reference/parameters + /docs/agent/hooks | verificado: sim
     # Hooks: ~/.cursor/hooks.json e .cursor/hooks.json; evento `stop` (status completed|aborted|error),
@@ -192,6 +195,7 @@ public enum Presets {
     status     = "hooks"
     hooks      = "crush"
     install    = "brew install charmbracelet/tap/crush"
+    update   = "brew upgrade charmbracelet/tap/crush"
 
     # Fonte: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference + hooks-configuration | verificado: sim
     # Hooks: ~/.copilot/hooks/*.json, ~/.copilot/settings.json ("hooks"), .github/hooks/*.json, .github/copilot/settings(.local).json;
@@ -210,6 +214,7 @@ public enum Presets {
     status   = "hooks"
     hooks    = "copilot"
     install  = "brew install copilot-cli"
+    update   = "brew upgrade copilot-cli"
 
     # Fonte: https://docs.factory.com/reference/cli-reference + /reference/hooks-reference | verificado: sim
     # Hooks: ~/.factory/hooks.json e .factory/hooks.json (ou "hooks" em settings.json); Stop, Notification
@@ -273,6 +278,7 @@ public enum Presets {
     model    = ["--model", "{model}"]
     status   = "silence"
     install  = "npm install -g @kilocode/cli"
+    update   = "npm install -g @kilocode/cli@latest"
 
     # Fonte: https://docs.cline.bot/cli/cli-reference.md + https://unpkg.com/cline@latest/README.md (3.0.74) + docs.cline.bot/sdk/plugins.md | verificado: sim (flags), parcial (hooks)
     # Hooks: plugins TS (~/.cline ou projeto) com beforeRun/afterRun/beforeTool/afterTool/onEvent; --hooks-dir (padrão
@@ -291,6 +297,7 @@ public enum Presets {
     status   = "hooks"
     hooks    = "cline"
     install  = "npm install -g cline"
+    update   = "npm install -g cline@latest"
 
     # Fonte: continuedev/continue extensions/cli/src/index.ts + shared-options.ts + README | verificado: sim
     # Hooks: nenhum encontrado.
@@ -305,6 +312,7 @@ public enum Presets {
     model    = ["--model", "{model}"]
     status   = "silence"
     install  = "npm i -g @continuedev/cli"
+    update   = "npm i -g @continuedev/cli@latest"
 
     # Fonte: https://aider.chat/docs/config/options.html + aider/io.py, aider/waiting.py | verificado: sim
     # Hooks: não tem; mas --notifications-command "<cmd>" roda um comando quando a resposta fica pronta (fim de turno).
@@ -341,6 +349,7 @@ public enum Presets {
     status     = "hooks"
     hooks      = "goose"
     install    = "brew install block-goose-cli"
+    update   = "brew upgrade block-goose-cli"
 
     # Fonte: https://docs.augmentcode.com/cli/reference + /cli/hooks | verificado: sim
     # Hooks: ~/.augment/settings.json, .augment/settings.json, .augment/settings.local.json, /etc/augment/settings.json;
@@ -357,6 +366,7 @@ public enum Presets {
     status   = "hooks"
     hooks    = "auggie"
     install  = "npm install -g @augmentcode/auggie"
+    update   = "npm install -g @augmentcode/auggie@latest"
 
     # Fonte: https://kiro.dev/docs/reference/cli-commands/ + https://kiro.dev/docs/hooks/ | verificado: sim
     # Hooks: .kiro/hooks/<id>.json (projeto) e ~/.kiro/hooks/ (global, só harness V3); trigger "Stop", PreToolUse,
@@ -390,6 +400,7 @@ public enum Presets {
     status     = "hooks"
     hooks      = "rovodev"
     install    = "brew tap atlassian/homebrew-acli && brew install acli"
+    update   = "brew upgrade acli"
 
     # Fonte: https://github.com/mistralai/mistral-vibe README (3.1.0, 04/11/2026) | verificado: sim
     # Hooks: ~/.vibe/hooks.toml e <projeto>/.vibe/hooks.toml ([[hooks]], type = pre_tool | post_tool | post_agent).
@@ -423,6 +434,7 @@ public enum Presets {
     status     = "hooks"
     hooks      = "letta"
     install    = "npm install -g @letta-ai/letta-code"
+    update   = "npm install -g @letta-ai/letta-code@latest"
 
     # Fonte: https://docs.x.ai/build/cli/reference.md + /build/features/hooks.md | verificado: sim
     # Hooks: ~/.grok/hooks/*.json e <projeto>/.grok/hooks/*.json (projeto exige /hooks-trust ou --trust); também lê
@@ -470,6 +482,7 @@ public enum Presets {
     continue = ["--resume", "--last"]
     status   = "silence"
     install  = "uv tool install openhands --python 3.12"
+    update   = "uv tool upgrade openhands"
 
     # Fonte: https://github.com/antinomyhq/forge README | verificado: sim
     # Hooks: não encontrados.
@@ -498,6 +511,7 @@ public enum Presets {
     prompt_via = "keys"
     status     = "silence"
     install    = "npm install -g freebuff"
+    update   = "npm install -g freebuff@latest"
 
     # ---------------------------------------------------------------------------
     # Pesquisados e descartados

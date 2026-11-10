@@ -48,6 +48,12 @@ public struct AgentDefinition: Sendable, Equatable {
     public var idleAfter: Int
     public var versionArgs: [String]
     public var install: String?
+    /// Comando para atualizar a CLI. Sem ele, o botão de atualizar roda `install`
+    /// de novo (os instaladores baixam a versão mais nova).
+    public var update: String?
+
+    /// O que o botão de atualizar roda.
+    public var updateCommand: String? { update ?? install }
 }
 
 /// Forma "parcial" lida do TOML. Tudo opcional para permitir que o arquivo do
@@ -73,11 +79,12 @@ struct AgentEntry: Codable, Sendable {
     var idleAfter: Int?
     var version: [String]?
     var install: String?
+    var update: String?
     var enabled: Bool?
 
     enum CodingKeys: String, CodingKey {
         case name, cmd, prompt, fresh, fork, resume, `continue`, model, args, env, status
-        case hooks, busy, waiting, version, install, enabled, mcp
+        case hooks, busy, waiting, version, install, update, enabled, mcp
         case idleAfter = "idle_after"
         case promptVia = "prompt_via"
         case assignId = "assign_id"
@@ -106,6 +113,7 @@ struct AgentEntry: Codable, Sendable {
             idleAfter: o.idleAfter ?? idleAfter,
             version: o.version ?? version,
             install: o.install ?? install,
+            update: o.update ?? update,
             enabled: o.enabled ?? enabled
         )
     }
@@ -145,7 +153,8 @@ struct AgentEntry: Codable, Sendable {
             waiting: waiting,
             idleAfter: idleAfter ?? 4,
             versionArgs: version ?? ["--version"],
-            install: install
+            install: install,
+            update: update
         )
     }
 }
