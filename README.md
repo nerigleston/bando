@@ -207,6 +207,10 @@ Para publicar uma versão: anote as mudanças no `CHANGELOG.md` e rode `git tag 
 
 O plano e as decisões estão em [doc/PLANO.md](doc/PLANO.md). O comparativo de interface com 30 ferramentas parecidas está em [doc/pesquisa-ux.md](doc/pesquisa-ux.md).
 
+## Contribuir
+
+Issues e PRs são bem-vindos. O jeito mais rápido de ajudar é adicionar ou corrigir um agente ou provider no catálogo (`catalog/*.toml`), sem escrever Swift. Veja o [CONTRIBUTING.md](CONTRIBUTING.md) e as issues marcadas com [bom primeiro issue](https://github.com/nerigleston/bando/labels/bom%20primeiro%20issue). Falha de segurança: [SECURITY.md](SECURITY.md).
+
 ## Licença
 
 [MIT](LICENSE).

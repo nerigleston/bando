@@ -1,0 +1,19 @@
+name: Ideia
+description: Sugestão de recurso ou mudança
+labels: ["ideia"]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: Qual problema resolve
+      description: O que você tenta fazer hoje e onde trava.
+    validations:
+      required: true
+  - type: textarea
+    id: proposta
+    attributes:
+      label: Como imagina
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: Alternativas que considerou

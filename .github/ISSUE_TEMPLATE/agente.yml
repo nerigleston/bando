@@ -1,0 +1,29 @@
+name: Agente ou provider novo
+description: Pedido para o catálogo
+labels: ["catálogo"]
+body:
+  - type: input
+    id: nome
+    attributes:
+      label: Nome e link
+      placeholder: "Minha CLI: https://github.com/..."
+    validations:
+      required: true
+  - type: dropdown
+    id: tipo
+    attributes:
+      label: Tipo
+      options: [Agente (CLI), Provider de modelo]
+    validations:
+      required: true
+  - type: textarea
+    id: flags
+    attributes:
+      label: Como iniciar, retomar e passar o prompt
+      description: Flags da documentação da CLI ou variáveis de ambiente do provider.
+  - type: checkboxes
+    id: pr
+    attributes:
+      label: Ajuda
+      options:
+        - label: Posso abrir o PR editando catalog/*.toml (veja CONTRIBUTING.md)

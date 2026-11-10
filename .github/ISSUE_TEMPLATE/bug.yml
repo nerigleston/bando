@@ -1,0 +1,43 @@
+name: Problema
+description: Algo não funciona como deveria
+labels: ["bug"]
+body:
+  - type: textarea
+    id: oque
+    attributes:
+      label: O que aconteceu
+      description: E o que você esperava que acontecesse.
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Como reproduzir
+      placeholder: |
+        1. Abri uma sessão com o Codex
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: versao
+    attributes:
+      label: Versão do Bando
+      description: Menu Bando > Sobre.
+      placeholder: "0.1.13"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS e chip
+      placeholder: "macOS 26.1, Apple Silicon"
+  - type: input
+    id: agente
+    attributes:
+      label: Agente e versão (se tiver a ver)
+      placeholder: "Claude Code 2.1, Codex 0.50"
+  - type: textarea
+    id: extra
+    attributes:
+      label: Capturas, logs ou relatório de falha
+      description: Relatórios de falha ficam em ~/Library/Logs/DiagnosticReports/Bando-*.ips. Tire dados pessoais antes de colar.
