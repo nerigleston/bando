@@ -51,3 +51,25 @@ struct CustomNameTests {
         #expect(try service.store.session(s.id)?.name == "Login")
     }
 }
+
+@Suite("Sessão sem tarefa")
+struct PlaceholderTitleTests {
+    @Test("nome de sessão vazia é reconhecido")
+    func placeholder() {
+        #expect(SessionTitles.isPlaceholder("sessão 4f66"))
+        #expect(!SessionTitles.isPlaceholder("Sessão vazia rápida"))
+        #expect(!SessionTitles.isPlaceholder("Corrigir login"))
+    }
+}
+
+@Suite("Primeira mensagem (conversa real)")
+struct FirstMessageTests {
+    @Test("lê a primeira mensagem de uma conversa do Claude Code (BANDO_TEST_NATIVE=<id>)",
+          .enabled(if: ProcessInfo.processInfo.environment["BANDO_TEST_NATIVE"] != nil))
+    func realTranscript() throws {
+        let id = ProcessInfo.processInfo.environment["BANDO_TEST_NATIVE"]!
+        let first = try #require(SessionTitles.firstUserMessage(nativeId: id))
+        print("primeira mensagem:", first.prefix(120))
+        #expect(!first.hasPrefix("<"))
+    }
+}

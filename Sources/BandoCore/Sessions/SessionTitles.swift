@@ -53,6 +53,35 @@ public enum SessionTitles {
         return (custom ?? ai).flatMap(clean)
     }
 
+    /// Primeira mensagem do usuário na conversa do Claude Code: a tarefa de
+    /// quem abriu a sessão vazia e escreveu direto no agente.
+    public static func firstUserMessage(nativeId: String) -> String? {
+        guard let url = ClaudeTranscript.file(for: nativeId),
+              let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        let data = (try? handle.read(upToCount: 512 * 1024)) ?? Data()
+        for line in data.split(separator: 0x0A) {
+            guard let obj = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
+                  obj["type"] as? String == "user", obj["isSidechain"] as? Bool != true, obj["isMeta"] as? Bool != true,
+                  let message = obj["message"] as? [String: Any] else { continue }
+            var text: String?
+            if let t = message["content"] as? String { text = t }
+            else if let blocks = message["content"] as? [[String: Any]] {
+                text = blocks.first { $0["type"] as? String == "text" }?["text"] as? String
+            }
+            // Comandos e avisos do próprio Claude Code vêm entre tags (<command-name> …).
+            // Resumo de conversa retomada também não é tarefa.
+            if let t = text?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty, !t.hasPrefix("<"),
+               !t.hasPrefix("This session is being continued"), !t.hasPrefix("Caveat:") { return t }
+        }
+        return nil
+    }
+
+    /// Nome de quem nasceu sem tarefa ("sessão 4f66").
+    public static func isPlaceholder(_ name: String) -> Bool {
+        name.range(of: #"^sessão [0-9a-f]{4}$"#, options: .regularExpression) != nil
+    }
+
     // MARK: 3. Gerado
 
     /// Pede o título à CLI do Claude. Nil se a CLI não existir, falhar ou devolver algo inválido.
@@ -126,10 +155,14 @@ extension SessionService {
         var title: String?
         // Só existe transcript para agentes que o gravam (hoje, o Claude Code).
         if !regenerate, let native = s.nativeId { title = SessionTitles.claudeTitle(nativeId: native) }
-        if title == nil, allowGenerate || regenerate,
-           let task = s.prompt?.trimmingCharacters(in: .whitespacesAndNewlines), !task.isEmpty {
+        // Sessão aberta vazia: a tarefa é a primeira mensagem escrita no agente, e o
+        // título é gerado uma vez (no fim da primeira resposta), mesmo nos ganchos baratos.
+        let placeholder = SessionTitles.isPlaceholder(s.name)
+        var task = s.prompt?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if task?.isEmpty != false, let native = s.nativeId { task = SessionTitles.firstUserMessage(nativeId: native) }
+        if title == nil, allowGenerate || regenerate || placeholder, let task, !task.isEmpty {
             // Só gera se o nome ainda é o provisório (ou se pediram de novo).
-            if regenerate || s.name == SessionTitles.provisional(task) || s.name == String(task.prefix(60)) {
+            if regenerate || placeholder || s.name == SessionTitles.provisional(task) || s.name == String(task.prefix(60)) {
                 title = SessionTitles.generate(task: task)
             }
         }
