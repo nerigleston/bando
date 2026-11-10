@@ -13,11 +13,15 @@ NOTE="${2:-}"
 APP="build/Bando.app"
 [ -d "$APP" ] || { echo "rode scripts/build-app.sh antes" >&2; exit 1; }
 
-osascript -e 'quit app "Bando"' 2>/dev/null || true
-open "$APP"
+# Fecha e abre só a cópia de build/, pelo caminho: o Bando instalado (onde
+# podem estar rodando as sessões de quem mede) fica aberto.
+BIN="$PWD/$APP/Contents/MacOS/Bando"
+pkill -f "$BIN" 2>/dev/null || true
+python3 -c 'import time; time.sleep(1)'
+open -n "$APP"
 PID=""
 for _ in $(seq 1 80); do
-  PID="$(pgrep -f "$APP/Contents/MacOS/Bando" || true)"
+  PID="$(pgrep -f "$BIN" || true)"
   [ -n "$PID" ] && break
   python3 -c 'import time; time.sleep(0.25)'
 done
