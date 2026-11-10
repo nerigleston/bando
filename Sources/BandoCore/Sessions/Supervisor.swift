@@ -45,6 +45,15 @@ public final class Supervisor: @unchecked Sendable {
         signal(SIGQUIT, SIG_IGN)
         signal(SIGTSTP, SIG_IGN)
 
+        // Título da sessão em segundo plano: o modelo responde em alguns segundos
+        // enquanto o agente já trabalha. Só na primeira subida e com nome provisório.
+        if !resume && !session.customName {
+            let service = self.service, id = session.id
+            Thread.detachNewThread {
+                if (try? service.refreshTitle(id)) ?? nil != nil { ChangeNotifier.post() }
+            }
+        }
+
         if !resume, let project = try? service.store.project(session.projectId),
            let setup = project.setupScript, !setup.isEmpty, session.usesWorktree {
             banner("setup do projeto: \(setup)")

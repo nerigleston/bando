@@ -34,6 +34,8 @@ public enum HookHandler {
                 if let fresh = try service.store.session(sessionId) {
                     _ = try? UsageCollector(store: service.store).collect(fresh)
                 }
+                // Título que o Claude Code gravou (ai-title/custom-title), sem chamar modelo.
+                if try service.refreshTitle(sessionId, allowGenerate: false) != nil { ChangeNotifier.post() }
                 let changed = session.usesWorktree ? ((try? Git())?.changedFileCount(session.worktreePath) ?? 0) : 0
                 try service.transition(sessionId, to: changed > 0 ? .review : .idle, kind: "hook",
                                        detail: changed > 0 ? "\(changed) arquivo(s) alterado(s)" : nil)

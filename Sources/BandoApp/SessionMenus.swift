@@ -230,6 +230,11 @@ struct SessionAction: Identifiable {
             let v = !session.pinned; model.run("Fixar") { try $0.setPinned(id, v) }
         })
         items.append(.init(id: "rename", title: "Renomear…", symbol: "pencil") { model.renaming = session })
+        if session.prompt?.isEmpty == false || session.nativeId != nil {
+            items.append(.init(id: "retitle", title: "Gerar nome de novo", symbol: "wand.and.stars") {
+                model.regenerateTitle(id)
+            })
+        }
         items.append(.separator("s1"))
         items.append(.init(id: "term", title: "Novo terminal neste worktree", symbol: "terminal") {
             model.runReturning("Novo terminal") { try $0.newTerminal(id) }

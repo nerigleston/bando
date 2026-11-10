@@ -121,6 +121,10 @@ public final class BandoStore: Sendable {
             try db.execute(sql: "UPDATE project SET name = ? WHERE path = ?",
                            arguments: [Project.generalName, Project.generalPath])
         }
+        // Nome escolhido pelo usuário fica marcado para o título automático não trocar.
+        m.registerMigration("v5-custom-name") { db in
+            try db.alter(table: "session") { t in t.add(column: "customName", .boolean).notNull().defaults(to: false) }
+        }
         return m
     }
 

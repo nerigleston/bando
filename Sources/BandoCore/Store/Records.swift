@@ -132,6 +132,8 @@ public struct Session: Codable, Sendable, Identifiable, Hashable, FetchableRecor
     public var pinned: Bool = false
     /// Escondida da lateral (continua existindo e aparece na busca).
     public var hidden: Bool = false
+    /// Nome dado pelo usuário (renomear): títulos automáticos não o substituem.
+    public var customName: Bool = false
 
     public init(id: String = UUID().uuidString.lowercased(), projectId: String, name: String, prompt: String?,
                 agent: String, provider: String?, model: String?, worktreePath: String, branch: String?,

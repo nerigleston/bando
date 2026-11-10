@@ -1,11 +1,20 @@
 # Mudanças
 
+## 0.1.15
+
+- Nome das sessões como no Xirp: um nome provisório na hora (começo da tarefa), depois o título que o Claude Code dá à conversa (inclusive o do /rename) ou, sem ele, um título curto gerado pelo Claude Haiku a partir da tarefa, no idioma dela. Nome dado por você nunca é trocado. O menu da sessão ganhou "Gerar nome de novo".
+- Inclui o que estava na 0.1.13 e na 0.1.14 (painel de arquivos, microfone, Option no ABNT2), que não chegaram a ser publicadas: os testes travavam no CI.
+
 ## 0.1.14
+
+Não publicada (testes travados no CI); entrou na 0.1.15.
 
 - Microfone liberado para os agentes nas sessões (o ditado por voz do Claude Code, por exemplo): o macOS passa a pedir permissão em vez de negar. Contribuição de @webdevpls (#1).
 - Option no teclado ABNT2 compõe o caractere no terminal (Option+Q = /, Option+W = ?). Option+Enter e Option+seta continuam como antes (#1).
 
 ## 0.1.13
+
+Não publicada (testes travados no CI); entrou na 0.1.15.
 
 - Painel de arquivos à direita da sessão (⌘E): árvore do worktree sem o que o git ignora, marcação do que mudou e visualização do arquivo em aba ao lado do terminal, com busca (⌘F). Só leitura.
 - Testes do serviço de sessões: pasta sem git, worktree em repositório, projeto Geral, migração e importação do General do Xirp.

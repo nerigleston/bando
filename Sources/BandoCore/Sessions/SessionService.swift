@@ -90,7 +90,8 @@ public final class SessionService: @unchecked Sendable {
         let parent = try req.dependsOn.map { try store.findSession($0) }
 
         let id = UUID().uuidString.lowercased()
-        let baseName = req.name ?? req.prompt.map { String($0.prefix(60)) } ?? "sessão \(String(id.prefix(4)))"
+        // Nome provisório na hora; o título de verdade vem depois (SessionTitles).
+        let baseName = req.name ?? req.prompt.map(SessionTitles.provisional) ?? "sessão \(String(id.prefix(4)))"
         let slug = Slug.make(req.name ?? req.prompt ?? "sessao") + "-" + String(id.prefix(4))
 
         var worktree = req.project.path
@@ -110,13 +111,14 @@ public final class SessionService: @unchecked Sendable {
         }
 
         let waiting = parent.map { !$0.status.releasesDependents && $0.status != .error } ?? false
-        let session = Session(
+        var session = Session(
             id: id, projectId: req.project.id, name: baseName, prompt: req.prompt,
             agent: agent.id, provider: req.provider, model: req.model,
             worktreePath: worktree, branch: branch, baseBranch: base, usesWorktree: useWorktree,
             tmuxName: "bando_\(String(id.prefix(8)))",
             status: waiting ? .queued : .starting, dependsOn: parent?.id
         )
+        session.customName = req.name != nil
         try store.pool.write { db in
             try session.insert(db)
             var e = SessionEvent(sessionId: id, kind: "created", status: session.status)
@@ -247,7 +249,7 @@ public final class SessionService: @unchecked Sendable {
     public func rename(_ id: String, to name: String) throws {
         let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { throw BandoError.invalid("O nome não pode ficar vazio") }
-        try update(id) { $0.name = clean }
+        try update(id) { $0.name = clean; $0.customName = true }
     }
 
     public func setPinned(_ id: String, _ pinned: Bool) throws { try update(id) { $0.pinned = pinned } }

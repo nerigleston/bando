@@ -232,6 +232,21 @@ final class AppModel {
     var liveTmux: [String: Set<String>] = [:]
     @ObservationIgnored private var tmuxRefreshing = false
 
+    /// Pede um título novo ao modelo (vale também para nome dado pelo usuário:
+    /// pedir de novo é a forma de voltar ao nome automático).
+    func regenerateTitle(_ id: String) {
+        guard let service else { return }
+        toast = "Gerando nome…"
+        Task.detached(priority: .userInitiated) {
+            _ = try? await service.store.pool.write { db in try db.execute(sql: "UPDATE session SET customName = 0 WHERE id = ?", arguments: [id]) }
+            let title = try? service.refreshTitle(id, regenerate: true)
+            await MainActor.run {
+                self.toast = title.map { "Nome: \($0)" } ?? "Não deu para gerar um nome agora"
+                self.refreshSessions()
+            }
+        }
+    }
+
     func refreshTmux() {
         guard !tmuxRefreshing else { return }
         tmuxRefreshing = true
