@@ -69,6 +69,9 @@ final class AppModel {
     var renaming: Session?
     /// Aviso curto no rodapé do painel (andamento de uma troca de agente etc.).
     var toast: String?
+    /// Versão nova já baixada, esperando reiniciar (mostrada no rodapé da lateral).
+    var updateReady: String?
+    @ObservationIgnored private var updateObserver: NSObjectProtocol?
     var handoffDefault: HandoffMode {
         get { HandoffMode(rawValue: UserDefaults.standard.string(forKey: "handoffDefault") ?? "") ?? .summary }
         set { UserDefaults.standard.set(newValue.rawValue, forKey: "handoffDefault") }
@@ -164,8 +167,13 @@ final class AppModel {
         if let open = ProcessInfo.processInfo.environment["BANDO_OPEN"] {
             if open == "composer" { openComposer() }
             else if open == "projects" { sidebarMode = .projects }
+            else if open.hasPrefix("update:") { updateReady = String(open.dropFirst(7)) }
             else if open.hasPrefix("session:") { gridMode = false; select(String(open.dropFirst(8))) }
             else if open.hasPrefix("project:"), let p = projects.first(where: { $0.name == String(open.dropFirst(8)) }) { openProject(p.id) }
+        }
+        updateObserver = NotificationCenter.default.addObserver(forName: Updater.updateReady, object: nil, queue: .main) { [weak self] n in
+            let version = n.object as? String
+            MainActor.assumeIsolated { self?.updateReady = version }
         }
         // Pedido de permissão não pode travar o carregamento: a resposta só
         // chega quando o usuário clica no aviso do sistema.
@@ -261,6 +269,11 @@ final class AppModel {
                 self.refreshSessions()
             }
         }
+    }
+
+    /// Reinicia e instala a versão baixada (o Sparkle troca o app e reabre).
+    func installUpdate() {
+        NotificationCenter.default.post(name: Updater.showUpdate, object: nil)
     }
 
     func refreshTmux() {

@@ -147,6 +147,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 @MainActor
 final class Updater: NSObject, ObservableObject, SPUStandardUserDriverDelegate, SPUUpdaterDelegate {
     static let showUpdate = Notification.Name("bando.showUpdate")
+    /// Versão baixada e pronta (object: String). O AppModel mostra no rodapé.
+    static let updateReady = Notification.Name("bando.updateReady")
     nonisolated private static let notificationId = "bando-update"
     private(set) var controller: SPUStandardUpdaterController?
     /// Versão já baixada (modo automático) esperando para instalar, e como
@@ -203,6 +205,7 @@ final class Updater: NSObject, ObservableObject, SPUStandardUserDriverDelegate, 
         MainActor.assumeIsolated {
             self.installNow = install
             self.readyVersion = version
+            NotificationCenter.default.post(name: Self.updateReady, object: version)
         }
         Task { @MainActor in
             let content = UNMutableNotificationContent()

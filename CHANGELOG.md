@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.1.17
+
+- Atualização pronta aparece no rodapé da lateral ("Bando X pronto · Reiniciar e instalar"), sem depender da permissão de notificação do macOS. Antes, sem essa permissão, a versão nova só entrava ao fechar o app, sem aviso.
+
 ## 0.1.16
 
 - Reforma da interface: sessões em árvore sob o projeto na lateral, busca, modo Selecionar para parar ou apagar várias de uma vez, confirmação antes de parar ou apagar, modais e popovers no mesmo estilo e grade que escolhe o formato pela quantidade de sessões, com prévia ao arrastar. Contribuição de @webdevpls (#3).

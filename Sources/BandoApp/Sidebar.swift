@@ -285,6 +285,36 @@ struct Sidebar: View {
     }
 
     var normalFooter: some View {
+        VStack(spacing: 0) {
+            if let v = model.updateReady { updateBar(v) }
+            normalFooterRow
+        }
+    }
+
+    /// Versão nova baixada: um clique reinicia e instala. Não depende da
+    /// permissão de notificação do macOS.
+    func updateBar(_ version: String) -> some View {
+        Button { model.installUpdate() } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.down.circle.fill").font(.system(size: 13))
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Bando \(version) pronto").font(.system(size: 12, weight: .semibold))
+                    Text("Reiniciar e instalar").font(.system(size: 11)).opacity(0.8)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundStyle(p.onAccent)
+            .padding(.horizontal, 10).padding(.vertical, 7)
+            .background(RoundedRectangle(cornerRadius: 8).fill(p.accent))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).pointerCursor()
+        .help("A versão nova já foi baixada. As sessões continuam no tmux durante a troca.")
+        .padding(.horizontal, 8).padding(.bottom, 6)
+    }
+
+    var normalFooterRow: some View {
         HStack(spacing: 2) {
             let waiting = model.counts.waiting
             if waiting > 0 {
