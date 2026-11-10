@@ -45,6 +45,53 @@ struct FileBrowserTests {
         #expect(try FileBrowser.read("\(dir)/a.txt", maxBytes: 2) == .tooLarge(size: 5))
     }
 
+    @Test("salvar recusa se o arquivo mudou no disco e mantém a permissão")
+    func writeChecks() throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let path = "\(dir)/run.sh"
+        FileManager.default.createFile(atPath: path, contents: Data("echo 1\n".utf8))
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path)
+
+        try FileBrowser.write("echo 2\n", to: path, expecting: "echo 1\n")
+        #expect(try String(contentsOfFile: path, encoding: .utf8) == "echo 2\n")
+        let perms = try FileManager.default.attributesOfItem(atPath: path)[.posixPermissions] as? Int
+        #expect(perms == 0o755)
+
+        // Alguém (o agente) mudou o arquivo depois de aberto.
+        #expect(throws: FileBrowser.WriteError.changedOnDisk) {
+            try FileBrowser.write("echo 3\n", to: path, expecting: "echo 1\n")
+        }
+        #expect(try String(contentsOfFile: path, encoding: .utf8) == "echo 2\n")
+        try FileBrowser.write("echo 3\n", to: path)
+        #expect(try String(contentsOfFile: path, encoding: .utf8) == "echo 3\n")
+    }
+
+    @Test("salvar um link simbólico grava no destino e mantém o link")
+    func writeThroughSymlink() throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        FileManager.default.createFile(atPath: "\(dir)/AGENTS.md", contents: Data("antes\n".utf8))
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: "\(dir)/AGENTS.md")
+        try FileManager.default.createSymbolicLink(atPath: "\(dir)/CLAUDE.md", withDestinationPath: "AGENTS.md")
+
+        try FileBrowser.write("depois\n", to: "\(dir)/CLAUDE.md", expecting: "antes\n")
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: "\(dir)/CLAUDE.md") == "AGENTS.md")
+        #expect(try String(contentsOfFile: "\(dir)/AGENTS.md", encoding: .utf8) == "depois\n")
+        let perms = try FileManager.default.attributesOfItem(atPath: "\(dir)/AGENTS.md")[.posixPermissions] as? Int
+        #expect(perms == 0o644)
+    }
+
+    @Test("só texto UTF-8 válido é editável")
+    func utf8() throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        FileManager.default.createFile(atPath: "\(dir)/a.txt", contents: Data("olá".utf8))
+        FileManager.default.createFile(atPath: "\(dir)/latin1.txt", contents: Data([0x6F, 0x6C, 0xE1]))
+        #expect(FileBrowser.isUTF8Text("\(dir)/a.txt"))
+        #expect(!FileBrowser.isUTF8Text("\(dir)/latin1.txt"))
+    }
+
     @Test("status do git vira marca no arquivo e na pasta")
     func porcelain() {
         let out = " M src/app.swift\0?? novo.txt\0R  dst.txt\0src.txt\0A  lib/x/y.c\0"

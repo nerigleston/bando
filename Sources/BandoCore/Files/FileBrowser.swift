@@ -86,6 +86,38 @@ public enum FileBrowser {
         return .text(String(decoding: data, as: UTF8.self))
     }
 
+    public enum WriteError: Error, LocalizedError, Equatable {
+        case changedOnDisk
+        public var errorDescription: String? {
+            switch self {
+            case .changedOnDisk: "O arquivo mudou no disco depois que você abriu."
+            }
+        }
+    }
+
+    /// O arquivo é texto UTF-8 válido (dá para editar e salvar sem estragar bytes).
+    public static func isUTF8Text(_ path: String) -> Bool {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return false }
+        return !data.prefix(8000).contains(0) && String(data: data, encoding: .utf8) != nil
+    }
+
+    /// Salva o texto. Com `expecting`, recusa se o conteúdo no disco não for mais
+    /// esse (o agente pode ter editado). Mantém as permissões (um script continua
+    /// executável). Num link simbólico, grava no arquivo de destino: a gravação
+    /// atômica renomeia por cima do caminho e trocaria o link por um arquivo.
+    public static func write(_ text: String, to path: String, expecting original: String? = nil) throws {
+        let url = URL(fileURLWithPath: path).resolvingSymlinksInPath()
+        let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+        if let original {
+            let current = try Data(contentsOf: url)
+            if String(decoding: current, as: UTF8.self) != original { throw WriteError.changedOnDisk }
+        }
+        try Data(text.utf8).write(to: url, options: .atomic)
+        if let perms = attrs[.posixPermissions] {
+            try? FileManager.default.setAttributes([.posixPermissions: perms], ofItemAtPath: url.path)
+        }
+    }
+
     /// Mudanças do worktree pelo git, com caminho absoluto. Uma pasta aparece
     /// como `.modified` quando algum arquivo dentro dela mudou.
     public static func changes(in worktree: String, git: Git? = try? Git()) -> [String: FileChange] {

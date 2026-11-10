@@ -452,7 +452,9 @@ struct SessionPane: View {
                 ZStack {
                     terminal.opacity(showingFile ? 0 : 1).allowsHitTesting(!showingFile)
                     if showingFile {
+                        // Um visualizador por arquivo: o estado de um nunca aparece no outro.
                         FileViewer(path: path, stamp: session.status)
+                            .id(path)
                             .background(model.theme?.background.color ?? p.card)
                     }
                 }
