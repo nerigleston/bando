@@ -120,6 +120,8 @@ struct SessionServiceTests {
         #expect(usage == 0)
     }
 
+    static let hasTmux = ExecutableLocator.shared.locate("tmux") != nil
+
     /// Sessão parada no estado dado, num servidor tmux só deste teste.
     func sessionInTmux(_ status: SessionStatus, running command: [String]) throws -> (Session, Tmux) {
         let dir = try folder("retomar-\(UUID().uuidString.prefix(4))")
@@ -132,7 +134,7 @@ struct SessionServiceTests {
         return (s, tmux)
     }
 
-    @Test("retomar depois que o agente saiu fecha o shell que sobrou no tmux")
+    @Test("retomar depois que o agente saiu fecha o shell que sobrou no tmux", .enabled(if: SessionServiceTests.hasTmux))
     func resumeAfterExitClosesLeftoverShell() throws {
         let (s, tmux) = try sessionInTmux(.error, running: ["/bin/zsh", "-f"])
         defer { _ = try? tmux.tmux(["kill-server"]) }
@@ -140,7 +142,7 @@ struct SessionServiceTests {
         #expect(tmux.hasSession(s.tmuxName) == false)
     }
 
-    @Test("retomar recusa quando o terminal da sessão está rodando outro programa")
+    @Test("retomar recusa quando o terminal da sessão está rodando outro programa", .enabled(if: SessionServiceTests.hasTmux))
     func resumeRefusesWhenTerminalIsBusy() throws {
         let (s, tmux) = try sessionInTmux(.error, running: ["/bin/sleep", "30"])
         defer { _ = try? tmux.tmux(["kill-server"]) }
@@ -148,7 +150,7 @@ struct SessionServiceTests {
         #expect(tmux.hasSession(s.tmuxName))
     }
 
-    @Test("sessão com agente vivo não é reiniciada")
+    @Test("sessão com agente vivo não é reiniciada", .enabled(if: SessionServiceTests.hasTmux))
     func liveSessionIsLeftAlone() throws {
         let (s, tmux) = try sessionInTmux(.working, running: ["/bin/zsh", "-f"])
         defer { _ = try? tmux.tmux(["kill-server"]) }

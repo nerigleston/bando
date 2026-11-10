@@ -88,6 +88,7 @@ jobs:
       - name: Catálogo em dia e testes
         timeout-minutes: 15
         run: |
+          command -v tmux || HOMEBREW_NO_AUTO_UPDATE=1 brew install tmux
           python3 -I scripts/gen-presets.py --check
           scripts/test.sh
 
