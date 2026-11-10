@@ -99,6 +99,15 @@ struct TerminalPane: NSViewRepresentable {
         /// e os agentes não distinguem). Só vale para o terminal com foco.
         func watchShiftReturn(on view: BandoTerminalView) {
             keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak view] event in
+                // ⌘V com imagem (print copiado): grava e cola o caminho, como o
+                // Xirp. Com texto, segue o colar normal do terminal.
+                if let view, event.window === view.window, view.window?.firstResponder === view,
+                   event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+                   event.charactersIgnoringModifiers == "v",
+                   let path = BandoTerminalView.saveImage(from: .general) {
+                    view.send(txt: BandoTerminalView.shellEscape(path) + " ")
+                    return nil
+                }
                 guard let view, event.window === view.window, view.window?.firstResponder === view,
                       event.keyCode == 36 || event.keyCode == 76,   // Return e Enter do teclado numérico
                       event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .shift
@@ -132,12 +141,12 @@ final class BandoTerminalView: LocalProcessTerminalView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        registerForDraggedTypes([.fileURL, .URL, .string])
+        registerForDraggedTypes([.fileURL, .URL, .string, .png, .tiff])
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
-        registerForDraggedTypes([.fileURL, .URL, .string])
+        registerForDraggedTypes([.fileURL, .URL, .string, .png, .tiff])
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
@@ -163,8 +172,34 @@ final class BandoTerminalView: LocalProcessTerminalView {
         if let urls = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty {
             return urls.map { shellEscape($0.path) }.joined(separator: " ") + " "
         }
+        // Imagem sem arquivo (navegador, miniatura do print): grava e cola o caminho.
+        if let path = saveImage(from: pb) { return shellEscape(path) + " " }
         if let urls = pb.readObjects(forClasses: [NSURL.self]) as? [URL], let u = urls.first { return u.absoluteString }
         return pb.string(forType: .string)
+    }
+
+    /// Pasta das imagens coladas ou arrastadas sem arquivo (o macOS limpa a
+    /// pasta temporária sozinho).
+    static var uploadsDir: URL {
+        URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("bando-uploads", isDirectory: true)
+    }
+
+    /// Grava a imagem da área de transferência em PNG e devolve o caminho.
+    /// Nil se não houver imagem ou se houver texto (aí o texto tem prioridade).
+    static func saveImage(from pb: NSPasteboard) -> String? {
+        guard pb.string(forType: .string) == nil else { return nil }
+        let png: Data?
+        if let d = pb.data(forType: .png) { png = d }
+        else if let tiff = pb.data(forType: .tiff), let rep = NSBitmapImageRep(data: tiff) { png = rep.representation(using: .png, properties: [:]) }
+        else if let img = NSImage(pasteboard: pb), let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) {
+            png = rep.representation(using: .png, properties: [:])
+        } else { png = nil }
+        guard let png, !png.isEmpty else { return nil }
+        let dir = uploadsDir
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("\(Int(Date().timeIntervalSince1970 * 1000))-image.png")
+        do { try png.write(to: url) } catch { return nil }
+        return url.path
     }
 
     /// Barra invertida antes de espaço e caracteres que o shell interpreta.

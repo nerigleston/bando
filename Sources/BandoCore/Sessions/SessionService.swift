@@ -23,7 +23,8 @@ public final class SessionService: @unchecked Sendable {
     @discardableResult
     public func ensureProject(at path: String) throws -> Project {
         let standardized = URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL.path
-        let root = (try? Git())?.repositoryRoot(of: standardized) ?? standardized
+        // Worktree (de sessão do Bando ou não) conta como o repositório principal.
+        let root = (try? Git())?.mainRepositoryRoot(of: standardized) ?? standardized
         if let existing = try store.pool.read({ db in
             try Project.filter(Column("path") == root).fetchOne(db)
         }) {

@@ -56,6 +56,20 @@ struct SessionServiceTests {
         #expect(s.branch?.hasPrefix("bando/corrigir-login") == true)
     }
 
+    @Test("worktree de uma sessão aponta para o projeto do repositório, não vira projeto novo")
+    func worktreeMapsToRepo() throws {
+        let repo = try folder("principal")
+        try git(["init", "-q", "-b", "main"], in: repo)
+        try "x\n".write(to: repo.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
+        try git(["add", "."], in: repo)
+        try git(["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init"], in: repo)
+        let project = try service.ensureProject(at: repo.path)
+        let s = try service.create(.init(project: project, prompt: "tarefa", agent: "shell", startNow: false))
+        #expect(s.usesWorktree)
+        let fromWorktree = try service.ensureProject(at: s.worktreePath)
+        #expect(fromWorktree.id == project.id)
+    }
+
     @Test("pasta pessoal vira o projeto Geral")
     func generalProject() throws {
         let general = try service.generalProject()

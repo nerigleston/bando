@@ -1,5 +1,10 @@
 # Mudanças
 
+## 0.1.20
+
+- Imagem sem arquivo (print copiado, imagem arrastada do navegador ou da miniatura do print) vira um PNG em `$TMPDIR/bando-uploads/` e o caminho é colado no terminal, como no Xirp. Vale para ⌘V com imagem na área de transferência e para arrastar.
+- Sessão criada de dentro do worktree de outra sessão fica no projeto do repositório. Antes o worktree virava um projeto à parte (com o nome dele, como `sessao-f380`).
+
 ## 0.1.19
 
 - Arrastar arquivo ou pasta do Finder para o terminal cola o caminho, com espaços e caracteres especiais protegidos (vários de uma vez também). Imagem arrastada vira caminho que o Claude Code lê. Texto e links arrastados entram como estão. Nada é executado: o Enter é seu.

@@ -15,6 +15,18 @@ public struct Git: Sendable {
         return r.trimmed
     }
 
+    /// Repositório principal, mesmo quando `path` é um worktree (o
+    /// `--show-toplevel` devolveria a raiz do worktree, e cada worktree viraria
+    /// um projeto). Nil fora de um repositório.
+    public func mainRepositoryRoot(of path: String) -> String? {
+        guard let top = repositoryRoot(of: path) else { return nil }
+        guard let r = try? Shell.run(executable, ["rev-parse", "--path-format=absolute", "--git-common-dir"], cwd: path), r.ok
+        else { return top }
+        let common = URL(fileURLWithPath: r.trimmed).standardizedFileURL
+        // Repositório normal ou worktree: o diretório comum é <repo>/.git.
+        return common.lastPathComponent == ".git" ? common.deletingLastPathComponent().path : top
+    }
+
     /// Branch atual (nil se HEAD destacado).
     public func currentBranch(_ repo: String) -> String? {
         guard let r = try? Shell.run(executable, ["symbolic-ref", "--quiet", "--short", "HEAD"], cwd: repo), r.ok else { return nil }
