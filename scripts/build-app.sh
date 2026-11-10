@@ -95,6 +95,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSHumanReadableCopyright</key><string>MIT License</string>
+  <key>NSMicrophoneUsageDescription</key><string>Agentes rodando nas sessões podem usar o microfone para ditado por voz.</string>
 ${FEED_KEYS}
 </dict>
 </plist>
@@ -111,7 +112,7 @@ for x in "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/"*.x
 done
 codesign "${SIGN_OPTS[@]}" "$APP/Contents/Frameworks/Sparkle.framework"
 codesign "${SIGN_OPTS[@]}" "$APP/Contents/MacOS/bando-cli"
-codesign "${SIGN_OPTS[@]}" "$APP"
+codesign "${SIGN_OPTS[@]}" --entitlements assets/Bando.entitlements "$APP"
 codesign --verify --deep --strict "$APP"
 
 du -sh "$APP" | awk '{print "==> pronto: build/Bando.app (" $1 ")"}'
