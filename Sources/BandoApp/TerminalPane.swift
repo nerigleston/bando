@@ -21,6 +21,11 @@ struct TerminalPane: NSViewRepresentable {
         // O histórico longo fica no tmux (rolagem com o mouse); o terminal local
         // só precisa de um pouco além da tela.
         view.changeScrollback(200)
+        // Option fica com o layout do teclado: no ABNT2, Option+Q é "/" e
+        // Option+W é "?". Nas teclas sem texto (setas, Enter, Backspace) segue
+        // como Meta, então Option+Enter e Option+seta continuam funcionando.
+        view.optionAsMetaKey = false
+        view.optionAsMetaKeyForFunctionalKeys = true
         apply(to: view)
         var env = Terminal.getEnvironmentVariables(termName: "xterm-256color", trueColor: true)
         env.append("LANG=\(ProcessInfo.processInfo.environment["LANG"] ?? "pt_BR.UTF-8")")
