@@ -3,7 +3,14 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore: ["**.md", "doc/**", ".github/ISSUE_TEMPLATE/**", "LICENSE"]
   pull_request:
+    paths-ignore: ["**.md", "doc/**", ".github/ISSUE_TEMPLATE/**", "LICENSE"]
+
+# Máquinas macOS são poucas: um commit novo cancela o CI anterior do mesmo branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:

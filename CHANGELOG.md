@@ -1,5 +1,10 @@
 # Mudanças
 
+## 0.1.14
+
+- Microfone liberado para os agentes nas sessões (o ditado por voz do Claude Code, por exemplo): o macOS passa a pedir permissão em vez de negar. Contribuição de @webdevpls (#1).
+- Option no teclado ABNT2 compõe o caractere no terminal (Option+Q = /, Option+W = ?). Option+Enter e Option+seta continuam como antes (#1).
+
 ## 0.1.13
 
 - Painel de arquivos à direita da sessão (⌘E): árvore do worktree sem o que o git ignora, marcação do que mudou e visualização do arquivo em aba ao lado do terminal, com busca (⌘F). Só leitura.

@@ -28,6 +28,11 @@ on:
   push:
     tags: ["v*"]
 
+# Um release por vez, na ordem das tags: dois juntos disputariam o appcast.xml.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 permissions:
   contents: write
   id-token: write   # OIDC para assumir o papel da AWS, sem chave guardada
