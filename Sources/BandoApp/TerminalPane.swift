@@ -105,7 +105,7 @@ struct TerminalPane: NSViewRepresentable {
                    event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
                    event.charactersIgnoringModifiers == "v",
                    let path = BandoTerminalView.saveImage(from: .general) {
-                    view.send(txt: BandoTerminalView.shellEscape(path) + " ")
+                    view.pasteText(BandoTerminalView.shellEscape(path) + " ")
                     return nil
                 }
                 guard let view, event.window === view.window, view.window?.firstResponder === view,
@@ -162,7 +162,7 @@ final class BandoTerminalView: LocalProcessTerminalView {
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         guard let text = Self.dropText(from: sender.draggingPasteboard) else { return false }
         window?.makeFirstResponder(self)
-        send(txt: text)
+        pasteText(text)   // como colagem (bracketed paste): o Claude Code anexa a imagem
         return true
     }
 

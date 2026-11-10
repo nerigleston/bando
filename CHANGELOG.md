@@ -1,5 +1,10 @@
 # Mudanças
 
+## 0.1.21
+
+- Menos memória: as conversas do Claude Code (algumas passam de 200 MB) eram lidas inteiras a cada resposta para o anel de contexto e o título. Agora são lidas em blocos de 1 MB, o contexto vem do fim do arquivo e os totais vêm do banco. Pico ao abrir caiu de ~530 MB para ~150 MB; uso estável de ~175 MB para ~145 MB com 3 terminais na grade.
+- Caminho de imagem ou arquivo arrastado/colado entra como colagem de verdade (bracketed paste): o Claude Code transforma em anexo `[Image #N]`, como no Xirp.
+
 ## 0.1.20
 
 - Imagem sem arquivo (print copiado, imagem arrastada do navegador ou da miniatura do print) vira um PNG em `$TMPDIR/bando-uploads/` e o caminho é colado no terminal, como no Xirp. Vale para ⌘V com imagem na área de transferência e para arrastar.

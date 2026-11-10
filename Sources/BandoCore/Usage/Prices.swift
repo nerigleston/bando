@@ -135,4 +135,10 @@ public struct TokenUsage: Sendable, Equatable {
                    cacheWrite5m: a.cacheWrite5m + b.cacheWrite5m, cacheWrite1h: a.cacheWrite1h + b.cacheWrite1h,
                    cacheRead: a.cacheRead + b.cacheRead)
     }
+
+    public static func - (a: TokenUsage, b: TokenUsage) -> TokenUsage {
+        TokenUsage(input: a.input - b.input, output: a.output - b.output,
+                   cacheWrite5m: a.cacheWrite5m - b.cacheWrite5m, cacheWrite1h: a.cacheWrite1h - b.cacheWrite1h,
+                   cacheRead: a.cacheRead - b.cacheRead)
+    }
 }

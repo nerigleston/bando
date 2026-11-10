@@ -60,16 +60,15 @@ public enum Handoff {
     /// Conversa do Claude Code em Markdown: falas do usuário, respostas e
     /// ferramentas usadas (só o comando, sem a saída).
     public static func claudeTranscriptMarkdown(nativeId: String, title: String) -> String? {
-        guard let url = ClaudeTranscript.file(for: nativeId),
-              let data = try? Data(contentsOf: url) else { return nil }
+        guard let url = ClaudeTranscript.file(for: nativeId) else { return nil }
         var out = ["# Conversa anterior: \(title)", "",
                    "Exportada pelo Bando da sessão do Claude Code \(nativeId).", ""]
         var lastRole = ""
-        for line in data.split(separator: 0x0A) {
-            guard let obj = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
+        ClaudeTranscript.forEachLine(url) { line in
+            guard let obj = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
                   let type = obj["type"] as? String, type == "user" || type == "assistant",
                   obj["isSidechain"] as? Bool != true,
-                  let message = obj["message"] as? [String: Any] else { continue }
+                  let message = obj["message"] as? [String: Any] else { return true }
             var parts: [String] = []
             if let text = message["content"] as? String {
                 parts.append(text)
@@ -88,11 +87,12 @@ public enum Handoff {
                 }
             }
             let text = parts.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty, !text.hasPrefix("<") else { continue }
+            guard !text.isEmpty, !text.hasPrefix("<") else { return true }
             let role = type == "user" ? "Você" : "Claude"
             if role != lastRole { out.append("## \(role)"); lastRole = role }
             out.append(text)
             out.append("")
+            return true
         }
         return out.joined(separator: "\n")
     }

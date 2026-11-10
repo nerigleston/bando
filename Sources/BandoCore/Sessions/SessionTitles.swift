@@ -38,17 +38,19 @@ public enum SessionTitles {
 
     /// `custom-title` (renomeado no Claude Code) vence `ai-title`; vale o último de cada.
     public static func claudeTitle(nativeId: String) -> String? {
-        guard let url = ClaudeTranscript.file(for: nativeId), let data = try? Data(contentsOf: url) else { return nil }
+        guard let url = ClaudeTranscript.file(for: nativeId) else { return nil }
         var custom: String?, ai: String?
-        for line in data.split(separator: 0x0A) where line.count < 4096 {
+        let key = Data("-title\"".utf8)
+        ClaudeTranscript.forEachLine(url) { line in
             // Filtro barato antes do JSON: só linhas de título interessam.
-            guard line.firstRange(of: Data("-title\"".utf8)) != nil,
-                  let obj = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any] else { continue }
+            guard line.count < 4096, line.range(of: key) != nil,
+                  let obj = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { return true }
             switch obj["type"] as? String {
             case "custom-title": custom = (obj["customTitle"] as? String) ?? custom
             case "ai-title": ai = (obj["aiTitle"] as? String) ?? ai
             default: break
             }
+            return true
         }
         return (custom ?? ai).flatMap(clean)
     }
@@ -56,25 +58,29 @@ public enum SessionTitles {
     /// Primeira mensagem do usuário na conversa do Claude Code: a tarefa de
     /// quem abriu a sessão vazia e escreveu direto no agente.
     public static func firstUserMessage(nativeId: String) -> String? {
-        guard let url = ClaudeTranscript.file(for: nativeId),
-              let handle = try? FileHandle(forReadingFrom: url) else { return nil }
-        defer { try? handle.close() }
-        let data = (try? handle.read(upToCount: 512 * 1024)) ?? Data()
-        for line in data.split(separator: 0x0A) {
-            guard let obj = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
+        guard let url = ClaudeTranscript.file(for: nativeId) else { return nil }
+        var found: String?
+        let userKey = Data("\"type\":\"user\"".utf8)
+        ClaudeTranscript.forEachLine(url) { line in
+            guard line.range(of: userKey) != nil,
+                  let obj = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
                   obj["type"] as? String == "user", obj["isSidechain"] as? Bool != true, obj["isMeta"] as? Bool != true,
-                  let message = obj["message"] as? [String: Any] else { continue }
+                  let message = obj["message"] as? [String: Any] else { return true }
             var text: String?
             if let t = message["content"] as? String { text = t }
             else if let blocks = message["content"] as? [[String: Any]] {
                 text = blocks.first { $0["type"] as? String == "text" }?["text"] as? String
             }
-            // Comandos e avisos do próprio Claude Code vêm entre tags (<command-name> …).
-            // Resumo de conversa retomada também não é tarefa.
+            // Comandos e avisos do próprio Claude Code vêm entre tags (<command-name> …);
+            // resumo de conversa retomada também não é tarefa.
             if let t = text?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty, !t.hasPrefix("<"),
-               !t.hasPrefix("This session is being continued"), !t.hasPrefix("Caveat:") { return t }
+               !t.hasPrefix("This session is being continued"), !t.hasPrefix("Caveat:") {
+                found = t
+                return false   // achou: para de ler
+            }
+            return true
         }
-        return nil
+        return found
     }
 
     /// Nome de quem nasceu sem tarefa ("sessão 4f66").

@@ -309,9 +309,10 @@ final class AppModel {
         guard !targets.isEmpty else { return }
         for s in targets { contextStamp[s.id] = s.updatedAt }
         let prices = self.prices
+        guard let store = service?.store else { return }
         Task.detached(priority: .utility) {
             var found: [String: ContextSummary] = [:]
-            for s in targets { if let c = ContextSummary.load(nativeId: s.nativeId, prices: prices) { found[s.id] = c } }
+            for s in targets { if let c = ContextSummary.quick(session: s, store: store, prices: prices) { found[s.id] = c } }
             let result = found
             await MainActor.run { self.contexts.merge(result) { _, n in n } }
         }
