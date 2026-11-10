@@ -4,8 +4,8 @@ import SwiftUI
 
 // MARK: - Painel de arquivos (à direita do terminal)
 
-/// Árvore do worktree da sessão. Só leitura: abrir um arquivo mostra o
-/// conteúdo numa aba ao lado do terminal. Recarrega quando o painel abre,
+/// Árvore do worktree da sessão. Abrir um arquivo mostra o conteúdo numa aba
+/// ao lado do terminal, onde dá para editar e salvar. Recarrega quando o painel abre,
 /// quando o agente muda de estado e pelo botão; sem polling.
 struct FilesPanel: View {
     @Environment(AppModel.self) private var model
@@ -80,7 +80,7 @@ struct FilesPanel: View {
                 if children[node.path] == nil { load([node.path]) }
             }
         } else {
-            model.openFiles[session.id] = node.path
+            model.setOpenFile(node.path, for: session.id)
         }
     }
 
@@ -229,9 +229,10 @@ struct FileTabs: View {
     var body: some View {
         HStack(spacing: 2) {
             tab(title: "Terminal", symbol: "terminal", active: !showingFile) { select(false) }
-            tab(title: (path as NSString).lastPathComponent, symbol: "doc.text", active: showingFile) { select(true) }
+            tab(title: (path as NSString).lastPathComponent + (model.dirtyFiles.contains(path) ? " •" : ""),
+                symbol: "doc.text", active: showingFile) { select(true) }
             IconButton(symbol: "xmark", help: "Fechar arquivo", size: 10) {
-                model.openFiles[session.id] = nil
+                model.setOpenFile(nil, for: session.id)
             }
             Spacer()
         }
@@ -254,7 +255,8 @@ struct FileTabs: View {
     }
 }
 
-/// Conteúdo do arquivo, só leitura, com número de linha e busca (⌘F).
+/// Conteúdo do arquivo, com número de linha e busca (⌘F). Texto UTF-8 dá para
+/// editar e salvar (⌘S); com edição pendente, não relê o arquivo sozinho.
 struct FileViewer: View {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var p
@@ -263,23 +265,64 @@ struct FileViewer: View {
     let stamp: SessionStatus
     @State private var content: FileContent?
     @State private var error: String?
+    /// Texto como está no disco (base para saber se mudou) e o que está na tela.
+    @State private var saved: String?
+    @State private var draft = ""
+    @State private var editable = false
+    @State private var conflict = false
+    @State private var saveError: String?
+
+    var dirty: Bool { saved != nil && draft != saved }
 
     var body: some View {
-        Group {
-            switch content {
-            case .text(let s)?:
-                CodeTextView(text: s, fontSize: max(model.fontSize - 1, 9), theme: model.theme)
-            case .binary(let size)?:
-                notice("Arquivo binário", ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
-            case .tooLarge(let size)?:
-                notice("Arquivo grande demais para mostrar aqui",
-                       ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
-            case nil:
-                if let error { notice("Não consegui abrir o arquivo", error) } else { ProgressView() }
+        VStack(spacing: 0) {
+            if dirty || conflict || saveError != nil { editBar }
+            Group {
+                switch content {
+                case .text?:
+                    CodeTextView(text: draft, fontSize: max(model.fontSize - 1, 9), theme: model.theme,
+                                 editable: editable) { draft = $0 }
+                case .binary(let size)?:
+                    notice("Arquivo binário", ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
+                case .tooLarge(let size)?:
+                    notice("Arquivo grande demais para mostrar aqui",
+                           ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
+                case nil:
+                    if let error { notice("Não consegui abrir o arquivo", error) } else { ProgressView() }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .task(id: "\(path)|\(stamp.rawValue)") { await load() }
+        .onChange(of: dirty) { _, d in
+            if d { model.dirtyFiles.insert(path) } else { model.dirtyFiles.remove(path) }
+        }
+        .onChange(of: path) { old, _ in model.dirtyFiles.remove(old) }
+    }
+
+    /// Faixa fina no topo: só aparece com mudança, conflito ou erro.
+    var editBar: some View {
+        HStack(spacing: 8) {
+            if conflict {
+                Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 11)).foregroundStyle(StateColor.waiting)
+                Text("O arquivo mudou no disco (o agente pode ter editado).").font(.system(size: 12))
+                Spacer()
+                Button("Recarregar") { conflict = false; Task { await load(force: true) } }.buttonStyle(OutlineButtonStyle())
+                Button("Sobrescrever") { save(force: true) }.buttonStyle(AccentButtonStyle(tint: StateColor.waiting))
+            } else {
+                Circle().fill(StateColor.waiting).frame(width: 6, height: 6)
+                Text(saveError ?? "Alterado").font(.system(size: 12))
+                    .foregroundStyle(saveError == nil ? p.secondary : StateColor.failed).lineLimit(1)
+                Spacer()
+                Button("Descartar") { if let saved { draft = saved }; saveError = nil }.buttonStyle(OutlineButtonStyle())
+                Button("Salvar") { save(force: false) }
+                    .buttonStyle(AccentButtonStyle())
+                    .keyboardShortcut("s", modifiers: .command)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .task(id: "\(path)|\(stamp.rawValue)") { await load() }
+        .padding(.horizontal, 12).frame(height: 40)
+        .background(p.card)
+        .overlay(alignment: .bottom) { Rectangle().fill(p.border).frame(height: 1) }
     }
 
     func notice(_ title: String, _ detail: String) -> some View {
@@ -291,14 +334,34 @@ struct FileViewer: View {
         }
     }
 
-    func load() async {
+    func load(force: Bool = false) async {
+        // Edição pendente: não troca o texto da tela por baixo de quem edita.
+        if dirty && !force { return }
         let path = path
-        let result = await Task.detached { () -> Result<FileContent, Error> in
-            Result { try FileBrowser.read(path) }
+        let result = await Task.detached { () -> Result<(FileContent, Bool), Error> in
+            Result { (try FileBrowser.read(path), FileBrowser.isUTF8Text(path)) }
         }.value
         switch result {
-        case .success(let c): content = c; error = nil
-        case .failure(let e): content = nil; error = e.localizedDescription
+        case .success(let (c, utf8)):
+            content = c; error = nil; editable = utf8
+            if case .text(let s) = c { saved = s; draft = s } else { saved = nil }
+        case .failure(let e):
+            content = nil; error = e.localizedDescription; saved = nil
+        }
+        saveError = nil
+    }
+
+    func save(force: Bool) {
+        guard let base = saved else { return }
+        do {
+            try FileBrowser.write(draft, to: path, expecting: force ? nil : base)
+            saved = draft
+            content = .text(draft)
+            conflict = false; saveError = nil
+        } catch FileBrowser.WriteError.changedOnDisk {
+            conflict = true
+        } catch {
+            saveError = "Não salvou: \(error.localizedDescription)"
         }
     }
 }
@@ -308,6 +371,8 @@ struct CodeTextView: NSViewRepresentable {
     let text: String
     let fontSize: Double
     let theme: ThemeDefinition?
+    var editable = false
+    var onEdit: ((String) -> Void)? = nil
 
     func makeNSView(context: Context) -> CodeScrollView {
         let view = CodeScrollView(frame: .zero)
@@ -318,6 +383,8 @@ struct CodeTextView: NSViewRepresentable {
     func updateNSView(_ view: CodeScrollView, context: Context) { apply(to: view) }
 
     func apply(to view: CodeScrollView) {
+        view.textView.isEditable = editable
+        view.onEdit = onEdit
         view.show(text: text,
                   font: NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular),
                   foreground: theme.map { NSColor($0.foreground.color) } ?? .textColor,

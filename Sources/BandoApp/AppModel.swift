@@ -52,6 +52,22 @@ final class AppModel {
     }
     /// Arquivo aberto em cada sessão (id da sessão → caminho absoluto).
     var openFiles: [String: String] = [:]
+    /// Arquivos com edição não salva (caminho absoluto).
+    var dirtyFiles: Set<String> = []
+
+    /// Troca ou fecha o arquivo da sessão; com edição não salva, pergunta antes.
+    func setOpenFile(_ path: String?, for sessionId: String) {
+        if let current = openFiles[sessionId], current != path, dirtyFiles.contains(current) {
+            let alert = NSAlert()
+            alert.messageText = "Descartar as mudanças em \((current as NSString).lastPathComponent)?"
+            alert.informativeText = "Você editou este arquivo e não salvou."
+            alert.addButton(withTitle: "Cancelar")
+            alert.addButton(withTitle: "Descartar").hasDestructiveAction = true
+            guard alert.runModal() == .alertSecondButtonReturn else { return }
+            dirtyFiles.remove(current)
+        }
+        openFiles[sessionId] = path
+    }
     var showSidebar = true
     var showNewSession = false
     var showPalette = false

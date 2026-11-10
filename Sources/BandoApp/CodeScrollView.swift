@@ -4,7 +4,9 @@ import AppKit
 /// e uma coluna de números de linha ao lado da área de rolagem. A coluna fica
 /// fora da rolagem, então nunca cobre o começo das linhas. Só AppKit, para dar
 /// para testar fora da interface SwiftUI.
-final class CodeScrollView: NSView {
+final class CodeScrollView: NSView, NSTextViewDelegate {
+    /// Chamado a cada edição do usuário.
+    var onEdit: ((String) -> Void)?
     let scrollView = NSScrollView()
     let textView: NSTextView
     private let gutter: LineGutter
@@ -31,6 +33,15 @@ final class CodeScrollView: NSView {
         textView.isEditable = false
         textView.isSelectable = true
         textView.isRichText = false
+        textView.allowsUndo = true
+        // Código: nada de aspas curvas, travessão ou correção automática.
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticTextReplacementEnabled = false
+        textView.isAutomaticSpellingCorrectionEnabled = false
+        textView.isContinuousSpellCheckingEnabled = false
+        textView.isGrammarCheckingEnabled = false
+        textView.smartInsertDeleteEnabled = false
         textView.usesFindBar = true
         textView.isIncrementalSearchingEnabled = true
         textView.drawsBackground = false
@@ -41,6 +52,7 @@ final class CodeScrollView: NSView {
         textView.isHorizontallyResizable = true
         textView.autoresizingMask = []
         scrollView.documentView = textView
+        textView.delegate = self
 
         addSubview(gutter)
         addSubview(scrollView)
@@ -50,6 +62,21 @@ final class CodeScrollView: NSView {
     }
 
     required init?(coder: NSCoder) { fatalError("não usado") }
+
+    func textDidChange(_ notification: Notification) {
+        let text = textView.string
+        gutter.lineCount = Self.lineCount(text)
+        needsLayout = true
+        gutter.needsDisplay = true
+        onEdit?(text)
+    }
+
+    static func lineCount(_ text: String) -> Int {
+        var lines = 1
+        for c in text.utf8 where c == 10 { lines += 1 }
+        if text.hasSuffix("\n") { lines -= 1 }
+        return max(lines, 1)
+    }
 
     override func layout() {
         super.layout()
@@ -68,12 +95,11 @@ final class CodeScrollView: NSView {
             textView.sizeToFit()
             scrollView.contentView.scroll(to: keep)
             scrollView.reflectScrolledClipView(scrollView.contentView)
-            var lines = 1
-            for c in text.utf8 where c == 10 { lines += 1 }
-            if text.hasSuffix("\n") { lines -= 1 }
-            gutter.lineCount = max(lines, 1)
+            gutter.lineCount = Self.lineCount(text)
         }
         textView.textColor = foreground
+        textView.insertionPointColor = foreground
+        textView.typingAttributes = [.font: font, .foregroundColor: foreground]
         if let selection { textView.selectedTextAttributes = [.backgroundColor: selection] }
         gutter.font = NSFont.monospacedDigitSystemFont(ofSize: max(font.pointSize - 1, 8), weight: .regular)
         gutter.background = background
