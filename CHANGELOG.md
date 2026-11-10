@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.1.22
+
+- O título automático é gerado pelo agente e pelo provider da própria sessão (Claude Code, Codex, OpenCode ou Gemini CLI, com as chaves e o modelo padrão do provider), e não mais sempre pelo Claude. Com a conta do próprio agente, o Claude Code usa o Haiku. Agente sem pergunta única no catálogo (`title`) fica com o nome provisório.
+
 ## 0.1.21
 
 - Menos memória: as conversas do Claude Code (algumas passam de 200 MB) eram lidas inteiras a cada resposta para o anel de contexto e o título. Agora são lidas em blocos de 1 MB, o contexto vem do fim do arquivo e os totais vêm do banco. Pico ao abrir caiu de ~530 MB para ~150 MB; uso estável de ~175 MB para ~145 MB com 3 terminais na grade.

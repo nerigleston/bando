@@ -30,14 +30,16 @@ O Bando abre cada tarefa numa **sessão**: um git worktree próprio, uma sessão
 
 ## Comparação
 
-Com o [Xirp](https://backstage.spotify.com/docs/xirp), a ferramenta mais parecida, medidos na mesma máquina (macOS 26, Apple Silicon) em novembro de 2026:
+Com o [Xirp](https://backstage.spotify.com/docs/xirp), a ferramenta mais parecida, medidos na mesma máquina (macOS 26, Apple Silicon) em novembro de 2026 (Bando 0.1.21):
 
 | | Bando | Xirp |
 |---|---|---|
 | Tecnologia | SwiftUI nativo + tmux | Electron + daemon em Node |
-| Memória com o app aberto | ~110 MB com 4 sessões na grade | ~1 GB (16 processos) |
-| Tamanho do app | 28 MB | 623 MB |
-| Processo em segundo plano | nenhum (só o tmux) | daemon sempre ativo |
+| Memória com o app aberto | ~145 MB com 3 terminais na grade | ~1 GB (16 processos) |
+| Memória com o app fechado | ~6 MB por sessão (supervisor) | ~26 MB por sessão (processo Node); 387 MB com 14 sessões |
+| Tamanho do app | 62 MB (Intel e Apple Silicon) | 623 MB |
+| Processo em segundo plano | nenhum além do tmux e do supervisor de cada sessão | daemon sempre ativo |
+| Atualização | automática, avisa na lateral e instala com um clique | automática |
 | Agentes | qualquer CLI, por configuração (28 no catálogo) | 5, fixos no app |
 | Providers de modelo | 53 no catálogo e os seus (OpenRouter, Bedrock, Ollama…) | login de cada CLI |
 | MCP | cadastro único, entregue a todos os agentes | configurado em cada agente |

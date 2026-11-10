@@ -54,6 +54,11 @@ public struct AgentDefinition: Sendable, Equatable {
 
     /// O que o botão de atualizar roda.
     public var updateCommand: String? { update ?? install }
+    /// Pergunta única para gerar o título da sessão (`{prompt}`, `{model}`).
+    /// Vazio: o agente não gera título (fica o nome provisório).
+    public var title: [String] = []
+    /// Modelo do título quando o provider é a conta do próprio agente.
+    public var titleModel: String?
 }
 
 /// Forma "parcial" lida do TOML. Tudo opcional para permitir que o arquivo do
@@ -81,10 +86,13 @@ struct AgentEntry: Codable, Sendable {
     var install: String?
     var update: String?
     var enabled: Bool?
+    var title: [String]?
+    var titleModel: String?
 
     enum CodingKeys: String, CodingKey {
         case name, cmd, prompt, fresh, fork, resume, `continue`, model, args, env, status
-        case hooks, busy, waiting, version, install, update, enabled, mcp
+        case hooks, busy, waiting, version, install, update, enabled, mcp, title
+        case titleModel = "title_model"
         case idleAfter = "idle_after"
         case promptVia = "prompt_via"
         case assignId = "assign_id"
@@ -114,7 +122,9 @@ struct AgentEntry: Codable, Sendable {
             version: o.version ?? version,
             install: o.install ?? install,
             update: o.update ?? update,
-            enabled: o.enabled ?? enabled
+            enabled: o.enabled ?? enabled,
+            title: o.title ?? title,
+            titleModel: o.titleModel ?? titleModel
         )
     }
 
@@ -154,7 +164,9 @@ struct AgentEntry: Codable, Sendable {
             idleAfter: idleAfter ?? 4,
             versionArgs: version ?? ["--version"],
             install: install,
-            update: update
+            update: update,
+            title: title ?? [],
+            titleModel: titleModel
         )
     }
 }

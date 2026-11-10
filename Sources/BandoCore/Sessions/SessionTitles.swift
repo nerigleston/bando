@@ -90,17 +90,28 @@ public enum SessionTitles {
 
     // MARK: 3. Gerado
 
-    /// Pede o título à CLI do Claude. Nil se a CLI não existir, falhar ou devolver algo inválido.
-    public static func generate(task: String) -> String? {
-        guard generationEnabled, let claude = ExecutableLocator.shared.locate("claude") else { return nil }
+    /// Pede o título ao agente da sessão (pergunta única do catálogo, campo
+    /// `title`), com o ambiente do provider dela. Nil se o agente não tiver
+    /// pergunta única, a CLI falhar ou a resposta não servir.
+    public static func generate(task: String, agent: AgentDefinition, model: String?, env: [String: String]) -> String? {
+        guard generationEnabled, !agent.title.isEmpty,
+              let exe = ExecutableLocator.shared.locate(agent.cmd) else { return nil }
         let clipped = task.count > 4000 ? String(task.prefix(4000)) + "…" : task
-        let args = ["-p", "--output-format", "json", "--model", model, "--tools", "",
-                    "--no-session-persistence", "--setting-sources", "", "--strict-mcp-config",
-                    "--system-prompt", system, "--max-budget-usd", budgetUSD]
-        guard let out = run(claude, args, input: "Tarefa:\n\n\(clipped)"),
-              let obj = try? JSONSerialization.jsonObject(with: Data(out.utf8)) as? [String: Any],
-              obj["is_error"] as? Bool != true, let text = obj["result"] as? String else { return nil }
-        return normalize(text)
+        let prompt = system + "\n\nTarefa:\n\n" + clipped
+        var args: [String] = []
+        for token in agent.title {
+            if token == "{model}" {
+                // Sem modelo: tira o valor e a opção que vinha antes ("-m", "--model").
+                guard let model, !model.isEmpty else { if args.last?.hasPrefix("-") == true { args.removeLast() }; continue }
+                args.append(model)
+            } else {
+                args.append(token.replacingOccurrences(of: "{prompt}", with: prompt))
+            }
+        }
+        guard let out = run(exe, args, env: env) else { return nil }
+        // A resposta vem na última linha não vazia (codex e opencode imprimem mais coisa antes).
+        let last = out.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.last { !$0.isEmpty }
+        return last.flatMap { normalize(String($0)) }
     }
 
     /// Resposta do modelo virando título: uma linha, 2 a 8 palavras, sem desculpas.
@@ -127,19 +138,18 @@ public enum SessionTitles {
     }
 
     /// Processo com limite de tempo (o `claude -p` pode travar sem rede).
-    static func run(_ exe: String, _ args: [String], input: String) -> String? {
+    static func run(_ exe: String, _ args: [String], env base: [String: String]) -> String? {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: exe)
         p.arguments = args
         p.currentDirectoryURL = FileManager.default.temporaryDirectory
-        var env = ProcessInfo.processInfo.environment
+        var env = base.isEmpty ? ProcessInfo.processInfo.environment : base
         env["PATH"] = ExecutableLocator.shared.pathValue
         env.removeValue(forKey: "BANDO_SESSION_ID")   // não acionar os hooks do Bando
         p.environment = env
-        let out = Pipe(), inp = Pipe()
-        p.standardOutput = out; p.standardInput = inp; p.standardError = FileHandle.nullDevice
+        let out = Pipe()
+        p.standardOutput = out; p.standardInput = FileHandle.nullDevice; p.standardError = FileHandle.nullDevice
         do { try p.run() } catch { return nil }
-        inp.fileHandleForWriting.write(Data(input.utf8)); try? inp.fileHandleForWriting.close()
         let done = DispatchSemaphore(value: 0)
         var data = Data()
         DispatchQueue.global().async { data = out.fileHandleForReading.readDataToEndOfFile(); done.signal() }
@@ -156,7 +166,8 @@ extension SessionService {
     /// `allowGenerate: false` só lê o título do transcript (barato; usado a cada
     /// fim de resposta), sem chamar o modelo.
     @discardableResult
-    public func refreshTitle(_ id: String, regenerate: Bool = false, allowGenerate: Bool = true) throws -> String? {
+    public func refreshTitle(_ id: String, regenerate: Bool = false, allowGenerate: Bool = true,
+                             env: [String: String]? = nil) throws -> String? {
         guard let s = try store.session(id), !s.customName else { return nil }
         var title: String?
         // Só existe transcript para agentes que o gravam (hoje, o Claude Code).
@@ -169,7 +180,7 @@ extension SessionService {
         if title == nil, allowGenerate || regenerate || placeholder, let task, !task.isEmpty {
             // Só gera se o nome ainda é o provisório (ou se pediram de novo).
             if regenerate || placeholder || s.name == SessionTitles.provisional(task) || s.name == String(task.prefix(60)) {
-                title = SessionTitles.generate(task: task)
+                title = generateTitle(for: s, task: task, env: env)
             }
         }
         guard let title, title != s.name else { return nil }
@@ -177,5 +188,24 @@ extension SessionService {
         guard let now = try store.session(id), !now.customName else { return nil }
         try update(id) { $0.name = title }
         return title
+    }
+}
+
+extension SessionService {
+    /// Título pelo agente e provider da própria sessão. Modelo: o padrão do
+    /// provider; com a conta do agente, o modelo barato do catálogo (`title_model`).
+    func generateTitle(for s: Session, task: String, env: [String: String]?) -> String? {
+        guard let agent = try? config.agent(s.agent), !agent.title.isEmpty else { return nil }
+        let providerId = s.provider ?? "default"
+        let model = providerId == "default" ? agent.titleModel : (config.providers[providerId]?.models.first ?? s.model)
+        guard let environment = env ?? titleEnvironment(s) else { return nil }
+        return SessionTitles.generate(task: task, agent: agent, model: model, env: environment)
+    }
+
+    /// Ambiente com o provider da sessão (chaves lidas do Keychain), o mesmo que
+    /// o agente recebe. Usado quando o título é pedido fora do supervisor.
+    func titleEnvironment(_ s: Session) -> [String: String]? {
+        guard let built = try? launchPlan(for: s, resume: true, forkFrom: nil, promptOverride: nil) else { return nil }
+        return try? built.0.resolvedEnvironment(store: KeychainStore(), environment: ProcessInfo.processInfo.environment)
     }
 }

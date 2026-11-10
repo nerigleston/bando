@@ -54,6 +54,10 @@ public enum Presets {
     # Providers: login ChatGPT; OPENAI_API_KEY; model_providers em ~/.codex/config.toml
     # Atenção: o Bando monta `codex --model X resume <id>`. A flag -m também existe em `codex resume`;
     # conferir se o -m antes do subcomando é aplicado ao resume.
+    # Título da sessão: pergunta única, sem ferramentas nem sessão salva, teto de gasto.
+    title       = ["-p", "--output-format", "text", "--tools", "", "--no-session-persistence", "--setting-sources", "", "--strict-mcp-config", "--max-budget-usd", "0.02", "--model", "{model}", "{prompt}"]
+    title_model = "claude-haiku-4-5"
+
     [agents.codex]
     name     = "Codex"
     mcp      = "codex"
@@ -73,6 +77,9 @@ public enum Presets {
     # Providers: login Google; GEMINI_API_KEY; Vertex (GOOGLE_API_KEY/GOOGLE_CLOUD_PROJECT)
     # Atenção: o --help só cita "latest" ou índice numérico em --resume; confirmar que aceita UUID.
     # Google anunciou em 05/2026 a transição do Gemini CLI para o Antigravity CLI (agy).
+    # Título da sessão: `codex exec` só leitura; a resposta sai na última linha.
+    title       = ["exec", "--skip-git-repo-check", "--sandbox", "read-only", "-m", "{model}", "{prompt}"]
+
     [agents.gemini]
     name     = "Gemini CLI"
     cmd      = "gemini"
@@ -96,6 +103,9 @@ public enum Presets {
     #        eventos SessionStart, PreToolUse, PostToolUse, PreInvocation, PostInvocation, Stop. Sem evento de permissão.
     #        Relatos de hooks carregados que nunca disparam nas versões 1.2.1/1.2.2. Mantido em "output" por isso.
     # Providers: login Google
+    # Título da sessão: modo não interativo.
+    title       = ["-p", "{prompt}", "-m", "{model}"]
+
     [agents.agy]
     name       = "Antigravity"
     cmd        = "agy"
@@ -131,6 +141,9 @@ public enum Presets {
     #        Cursor também carrega hooks de terceiros (Claude Code) se habilitado.
     # Providers: só conta Cursor; --model escolhe entre os modelos da conta (`agent models`)
     # Atenção: --resume [chatId] tem valor opcional; se der problema, usar "--resume={native_id}".
+    # Título da sessão: `opencode run`; a resposta sai na última linha.
+    title       = ["run", "-m", "{model}", "{prompt}"]
+
     [agents.cursor]
     name     = "Cursor"
     cmd      = "agent"

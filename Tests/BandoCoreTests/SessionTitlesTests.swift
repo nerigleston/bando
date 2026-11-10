@@ -22,10 +22,14 @@ struct SessionTitlesTests {
         #expect(SessionTitles.normalize("um dois três quatro cinco seis sete oito nove") == nil)
     }
 
-    @Test("gera de verdade com a CLI do Claude (BANDO_TEST_TITLES=1)",
+    @Test("gera de verdade pelo agente (BANDO_TEST_TITLES=1, BANDO_TEST_AGENT=claude|codex|opencode)",
           .enabled(if: ProcessInfo.processInfo.environment["BANDO_TEST_TITLES"] == "1"))
     func realGeneration() throws {
-        let title = try #require(SessionTitles.generate(task: "o shift+enter não está quebrando linha no terminal, só option+enter"))
+        let config = try BandoConfig.load(userAgents: nil, userProviders: nil)
+        let agentId = ProcessInfo.processInfo.environment["BANDO_TEST_AGENT"] ?? "claude"
+        let agent = try config.agent(agentId)
+        let title = try #require(SessionTitles.generate(task: "o shift+enter não está quebrando linha no terminal, só option+enter",
+                                                        agent: agent, model: agent.titleModel, env: [:]))
         print("título gerado:", title)
         #expect((2...8).contains(title.split(separator: " ").count))
     }
