@@ -50,6 +50,37 @@ public struct Git: Sendable {
         }
     }
 
+    /// Copia para o worktree novo os arquivos de ambiente que o git ignora
+    /// (`.env`, `.env.local`, `.env-all`...) e que, por isso, o `git worktree`
+    /// não leva. Procura em todo o repositório, menos dentro de pastas
+    /// ignoradas (`node_modules` etc.). Não sobrescreve. Devolve os caminhos
+    /// relativos copiados.
+    @discardableResult
+    public func copyEnvFiles(from repo: String, to worktree: String) -> [String] {
+        guard let root = repositoryRoot(of: repo),
+              let r = try? Shell.run(executable, ["ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory"], cwd: root),
+              r.ok else { return [] }
+        let fm = FileManager.default
+        var copied: [String] = []
+        for rel in r.stdout.split(separator: "\0").map(String.init) where Self.isEnvFile(rel) {
+            let src = URL(fileURLWithPath: root).appendingPathComponent(rel)
+            let dst = URL(fileURLWithPath: worktree).appendingPathComponent(rel)
+            guard !fm.fileExists(atPath: dst.path),
+                  let size = (try? fm.attributesOfItem(atPath: src.path))?[.size] as? NSNumber,
+                  size.int64Value <= 1_000_000 else { continue }
+            try? fm.createDirectory(at: dst.deletingLastPathComponent(), withIntermediateDirectories: true)
+            if (try? fm.copyItem(at: src, to: dst)) != nil { copied.append(rel) }
+        }
+        return copied
+    }
+
+    /// `.env` ou variações (`.env.local`, `.env-all`, `.env_prod`). Pasta não conta.
+    static func isEnvFile(_ rel: String) -> Bool {
+        guard !rel.hasSuffix("/") else { return false }
+        let name = (rel as NSString).lastPathComponent
+        return name == ".env" || [".env.", ".env-", ".env_"].contains { name.hasPrefix($0) }
+    }
+
     /// Mudanças não commitadas (inclui arquivos novos).
     public func hasUncommittedChanges(_ worktree: String) -> Bool {
         guard let r = try? Shell.run(executable, ["status", "--porcelain"], cwd: worktree), r.ok else { return false }

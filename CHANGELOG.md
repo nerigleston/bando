@@ -1,5 +1,10 @@
 # Mudanças
 
+## 0.1.29
+
+- O painel de arquivos mostra tudo, inclusive o que o git ignora (`.env`, `node_modules`, `.venv`), mais apagado. Só `.git` e `.DS_Store` ficam escondidos.
+- Sessão nova em worktree recebe os arquivos de ambiente da pasta principal que o git ignora (`.env`, `.env.local`, `.env-all`, `api/.env`...). Antes o worktree nascia sem eles. Arquivos dentro de pastas ignoradas ficam de fora, e nada é sobrescrito.
+
 ## 0.1.28
 
 - Na troca de agente, você escolhe quem escreve o resumo: o agente que sai ou o que entra. Com "escrito pelo novo agente", o Bando exporta a conversa para `.bando/conversa.md` e o agente que entra lê, escreve `.bando/handoff.md` e segue. Funciona mesmo com o agente anterior parado ou sem limite. No terminal: `bando swap --levar resumo-novo`. A exportação só existe a partir do Claude Code.

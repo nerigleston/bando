@@ -131,9 +131,9 @@ struct FileRow: View {
                 .font(.system(size: 9, weight: .semibold)).foregroundStyle(p.tertiary)
                 .frame(width: 10)
             Image(systemName: node.isDirectory ? "folder" : "doc.text")
-                .font(.system(size: 11)).foregroundStyle(node.isDirectory ? p.secondary : p.tertiary)
+                .font(.system(size: 11)).foregroundStyle(node.isDirectory && !node.isIgnored ? p.secondary : p.tertiary)
             Text(node.name).font(.system(size: 12)).lineLimit(1).truncationMode(.middle)
-                .foregroundStyle(changeColor ?? p.text)
+                .foregroundStyle(changeColor ?? (node.isIgnored ? p.tertiary : p.text))
             Spacer(minLength: 4)
             if let change, !node.isDirectory {
                 Text(changeLetter(change)).font(.system(size: 10, weight: .semibold, design: .monospaced))
@@ -158,7 +158,7 @@ struct FileRow: View {
             Button("Copiar caminho") { copy(node.path) }
             Button("Copiar caminho relativo") { copy(relative) }
         }
-        .help(relative)
+        .help(node.isIgnored ? relative + " (ignorado pelo git)" : relative)
     }
 
     var relative: String {

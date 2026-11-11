@@ -109,6 +109,8 @@ public final class SessionService: @unchecked Sendable {
                 ?? BandoPaths.worktreeRoot(forRepository: URL(fileURLWithPath: req.project.path))
             worktree = root.appendingPathComponent(slug).path
             try git.addWorktree(repo: req.project.path, path: worktree, branch: branch!, base: base)
+            // O worktree só traz o que é versionado; o .env fica para trás.
+            git.copyEnvFiles(from: req.project.path, to: worktree)
         }
 
         let waiting = parent.map { !$0.status.releasesDependents && $0.status != .error } ?? false

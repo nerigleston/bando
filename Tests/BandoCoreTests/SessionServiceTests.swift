@@ -190,4 +190,28 @@ struct SessionServiceTests {
         #expect(!FileManager.default.fileExists(atPath: Handoff.conversationURL(worktree: s.worktreePath).path))
         #expect(messages.count == 2)
     }
+
+    @Test("worktree novo recebe os .env que o git ignora, menos os de pastas ignoradas")
+    func worktreeGetsEnvFiles() throws {
+        let repo = try folder("repo-env")
+        try git(["init", "-q", "-b", "main"], in: repo)
+        let fm = FileManager.default
+        try fm.createDirectory(at: repo.appendingPathComponent("api"), withIntermediateDirectories: true)
+        try fm.createDirectory(at: repo.appendingPathComponent("node_modules/pkg"), withIntermediateDirectories: true)
+        try ".env*\n!.env.example\nnode_modules/\n".write(to: repo.appendingPathComponent(".gitignore"), atomically: true, encoding: .utf8)
+        try "A=1\n".write(to: repo.appendingPathComponent(".env.example"), atomically: true, encoding: .utf8)
+        try "x\n".write(to: repo.appendingPathComponent("api/main.py"), atomically: true, encoding: .utf8)
+        try git(["add", "."], in: repo)
+        try git(["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init"], in: repo)
+        for f in [".env", ".env-all", "api/.env", "node_modules/pkg/.env"] {
+            try "SEGREDO=1\n".write(to: repo.appendingPathComponent(f), atomically: true, encoding: .utf8)
+        }
+        let project = try service.ensureProject(at: repo.path)
+        let s = try service.create(.init(project: project, prompt: "env", agent: "shell", startNow: false))
+        let wt = URL(fileURLWithPath: s.worktreePath)
+        for f in [".env", ".env-all", "api/.env", ".env.example"] {
+            #expect(fm.fileExists(atPath: wt.appendingPathComponent(f).path), "\(f) no worktree")
+        }
+        #expect(!fm.fileExists(atPath: wt.appendingPathComponent("node_modules").path))
+    }
 }

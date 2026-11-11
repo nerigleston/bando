@@ -8,12 +8,15 @@ public struct FileNode: Identifiable, Hashable, Sendable {
     public let name: String
     public let isDirectory: Bool
     public let size: Int64
+    /// O git ignora (`.env`, `node_modules`...). Aparece na árvore, mais apagado.
+    public var isIgnored: Bool
 
-    public init(path: String, name: String, isDirectory: Bool, size: Int64) {
+    public init(path: String, name: String, isDirectory: Bool, size: Int64, isIgnored: Bool = false) {
         self.path = path
         self.name = name
         self.isDirectory = isDirectory
         self.size = size
+        self.isIgnored = isIgnored
     }
 }
 
@@ -32,14 +35,15 @@ public enum FileChange: String, Sendable {
 /// Leitura de pastas e arquivos do worktree para o painel de arquivos.
 /// Só lê: o painel não escreve, renomeia nem apaga nada.
 public enum FileBrowser {
-    /// Nomes que nunca aparecem na árvore, mesmo fora do `.gitignore`.
+    /// Nomes que nunca aparecem na árvore.
     public static let alwaysHidden: Set<String> = [".git", ".DS_Store"]
 
     /// Arquivo maior que isto não é aberto no painel.
     public static let maxBytes: Int64 = 2 * 1024 * 1024
 
     /// Itens da pasta: pastas primeiro, depois arquivos, em ordem alfabética
-    /// sem diferenciar maiúsculas. Esconde `alwaysHidden` e o que o git ignora.
+    /// sem diferenciar maiúsculas. Esconde só `alwaysHidden`; o que o git
+    /// ignora vem marcado em `isIgnored`.
     public static func list(_ directory: String, git: Git? = try? Git()) throws -> [FileNode] {
         let url = URL(fileURLWithPath: directory)
         let keys: [URLResourceKey] = [.isDirectoryKey, .fileSizeKey, .isSymbolicLinkKey]
@@ -58,7 +62,7 @@ public enum FileBrowser {
         }
         if let git, !nodes.isEmpty {
             let ignored = ignoredNames(nodes.map(\.name), in: directory, git: git)
-            nodes.removeAll { ignored.contains($0.name) }
+            for i in nodes.indices where ignored.contains(nodes[i].name) { nodes[i].isIgnored = true }
         }
         return nodes.sorted {
             if $0.isDirectory != $1.isDirectory { return $0.isDirectory }
@@ -66,7 +70,7 @@ public enum FileBrowser {
         }
     }
 
-    /// Nomes que o `.gitignore` esconde, com um único `git check-ignore` por pasta.
+    /// Nomes que o `.gitignore` ignora, com um único `git check-ignore` por pasta.
     /// Fora de um repositório, nenhum.
     static func ignoredNames(_ names: [String], in directory: String, git: Git) -> Set<String> {
         guard let r = try? Shell.run(git.executable, ["check-ignore", "--stdin"], cwd: directory,

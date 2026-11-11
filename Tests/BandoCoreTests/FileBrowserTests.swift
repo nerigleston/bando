@@ -10,7 +10,7 @@ struct FileBrowserTests {
         return dir.path
     }
 
-    @Test("pastas primeiro, ordem natural, esconde .git e o que o git ignora")
+    @Test("pastas primeiro, ordem natural, esconde .git e marca o que o git ignora")
     func listing() throws {
         let dir = try tempDir()
         defer { try? FileManager.default.removeItem(atPath: dir) }
@@ -19,10 +19,12 @@ struct FileBrowserTests {
         for f in ["b10.txt", "b2.txt", "A.md", ".DS_Store"] { fm.createFile(atPath: "\(dir)/\(f)", contents: Data("x".utf8)) }
         let git = try Git()
         try Shell.check(git.executable, ["init", "-q"], cwd: dir)
-        fm.createFile(atPath: "\(dir)/.gitignore", contents: Data("node_modules\n".utf8))
+        fm.createFile(atPath: "\(dir)/.gitignore", contents: Data("node_modules\n.env\n".utf8))
+        fm.createFile(atPath: "\(dir)/.env", contents: Data("x".utf8))
 
-        let names = try FileBrowser.list(dir, git: git).map(\.name)
-        #expect(names == ["src", ".gitignore", "A.md", "b2.txt", "b10.txt"])
+        let nodes = try FileBrowser.list(dir, git: git)
+        #expect(nodes.map(\.name) == ["node_modules", "src", ".env", ".gitignore", "A.md", "b2.txt", "b10.txt"])
+        #expect(nodes.filter(\.isIgnored).map(\.name) == ["node_modules", ".env"])
     }
 
     @Test("fora de um repositório nada é escondido além dos fixos")
