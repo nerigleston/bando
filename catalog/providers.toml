@@ -563,10 +563,11 @@ env = { OPENAI_API_KEY = "keychain:bando/requesty", OPENAI_BASE_URL = "https://r
 # Codex: a doc usa experimental_bearer_token no config.toml; aqui env_key, para a chave sair do Keychain.
 #        Responses API em alpha (POST /api/v1/responses responde 402 sem crédito, a rota existe).
 # Sem endpoint Anthropic (POST /api/v1/messages = 404, 11/11/2026): a doc manda usar claude-code-router => sem Claude Code.
+# Modelo padrão (primeiro da lista) escolhido pelo usuário; IDs conferidos na lista de modelos da Venice em 11/11/2026.
 # Crush e Aider não listam a Venice. Goose lista VENICE_API_KEY; o ID "venice" de GOOSE_PROVIDER não aparece na página.
 [providers.venice]
 name   = "Venice AI"
-models = ["z-ai-glm-5-3", "kimi-k3", "deepseek-v4-pro", "openai-gpt-6-astra"]
+models = ["deepseek-v4-1-flash-1017-uncensored", "kimi-k3-1-pro", "z-ai-glm-5-3", "deepseek-v4-pro-0813", "openai-gpt-6-sol", "claude-sonnet-5-5"]
 
 [providers.venice.for.codex]
 env  = { VENICE_API_KEY = "keychain:bando/venice" }

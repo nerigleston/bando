@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.1.27
+
+- Venice AI abre com o DeepSeek V4.1 Flash 1017 Uncensored como modelo padrão. A lista de modelos sugeridos foi atualizada com IDs atuais da Venice (Kimi K3.1 Pro, GLM 5.3, DeepSeek V4 Pro 0813, GPT-6 Sol e Claude Sonnet 5.5).
+
 ## 0.1.26
 
 - Venice AI entra no catálogo de providers para Codex, OpenCode, Qwen Code e Goose. A chave fica no Keychain (`bando secret set bando/venice`). Claude Code fica de fora: a Venice não tem endpoint no formato da Anthropic.
