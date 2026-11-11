@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.1.26
+
+- Venice AI entra no catálogo de providers para Codex, OpenCode, Qwen Code e Goose. A chave fica no Keychain (`bando secret set bando/venice`). Claude Code fica de fora: a Venice não tem endpoint no formato da Anthropic.
+
 ## 0.1.25
 
 - O visualizador de arquivos (aba ao lado do Terminal) edita e salva texto UTF-8, com desfazer (⌘Z), busca (⌘F) e ⌘S. A aba ganha um ponto quando há mudança não salva. Se o agente mudou o arquivo depois que você abriu, o Bando não sobrescreve sem perguntar: oferece Recarregar ou Sobrescrever. Arquivo que não é UTF-8 continua só leitura. Contribuição de @webdevpls (#5).

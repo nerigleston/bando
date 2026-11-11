@@ -559,6 +559,29 @@ env = { REQUESTY_API_KEY = "keychain:bando/requesty" }
 env = { OPENAI_API_KEY = "keychain:bando/requesty", OPENAI_BASE_URL = "https://router.requesty.ai/v1" }
 
 
+# Fonte: https://docs.venice.ai/guides/integrations/codex-cli ; https://docs.venice.ai/guides/integrations/claude-code ; https://models.dev/api.json ; https://goose-docs.ai/docs/getting-started/providers  | verificado: parcial
+# Codex: a doc usa experimental_bearer_token no config.toml; aqui env_key, para a chave sair do Keychain.
+#        Responses API em alpha (POST /api/v1/responses responde 402 sem crédito, a rota existe).
+# Sem endpoint Anthropic (POST /api/v1/messages = 404, 11/11/2026): a doc manda usar claude-code-router => sem Claude Code.
+# Crush e Aider não listam a Venice. Goose lista VENICE_API_KEY; o ID "venice" de GOOSE_PROVIDER não aparece na página.
+[providers.venice]
+name   = "Venice AI"
+models = ["z-ai-glm-5-3", "kimi-k3", "deepseek-v4-pro", "openai-gpt-6-astra"]
+
+[providers.venice.for.codex]
+env  = { VENICE_API_KEY = "keychain:bando/venice" }
+args = ["-c", "model_provider=\"venice\"", "-c", "model_providers.venice.name=\"Venice\"", "-c", "model_providers.venice.base_url=\"https://api.venice.ai/api/v1\"", "-c", "model_providers.venice.env_key=\"VENICE_API_KEY\"", "-c", "model_providers.venice.wire_api=\"responses\""]
+
+[providers.venice.for.opencode]
+env = { VENICE_API_KEY = "keychain:bando/venice" }
+
+[providers.venice.for.qwen]
+env = { OPENAI_API_KEY = "keychain:bando/venice", OPENAI_BASE_URL = "https://api.venice.ai/api/v1" }
+
+[providers.venice.for.goose]
+env = { GOOSE_PROVIDER = "venice", VENICE_API_KEY = "keychain:bando/venice" }
+
+
 # Fonte: https://console.groq.com/docs/responses-api ; https://console.groq.com/docs/coding-with-groq  | verificado: parcial
 # Responses API em beta em https://api.groq.com/openai/v1 ("all models support the Responses API").
 # Groq não documenta Codex (parcial). Sem endpoint Anthropic (há pedido aberto na comunidade).
