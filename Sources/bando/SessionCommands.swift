@@ -417,9 +417,11 @@ struct Swap: ParsableCommand {
         discussion: """
         Mesmo agente: retoma a conversa com o provider/modelo novo.
         Outro agente: conversa nova no mesmo worktree, levando:
-          resumo    o agente atual escreve .bando/handoff.md (padrão)
-          conversa  o Bando exporta a conversa (só do Claude Code)
-          nenhum    só a tarefa original
+          resumo       o agente atual escreve .bando/handoff.md (padrão)
+          resumo-novo  o Bando exporta a conversa e o novo agente escreve o resumo
+                       (só do Claude Code; serve quando o atual bateu o limite)
+          conversa     o Bando exporta a conversa (só do Claude Code)
+          nenhum       só a tarefa original
         O pedido de resumo é editável em ~/.config/bando/handoff.md.
         """)
 
@@ -427,10 +429,10 @@ struct Swap: ParsableCommand {
     @Option(name: .shortAndLong) var agent: String
     @Option(name: .shortAndLong) var provider: String?
     @Option(name: .shortAndLong) var model: String?
-    @Option(name: .long, help: "resumo, conversa ou nenhum") var levar: String = HandoffMode.summary.rawValue
+    @Option(name: .long, help: "resumo, resumo-novo, conversa ou nenhum") var levar: String = HandoffMode.summary.rawValue
 
     func run() throws {
-        guard let mode = HandoffMode(rawValue: levar) else { throw ValidationError("Use --levar resumo, conversa ou nenhum") }
+        guard let mode = HandoffMode(rawValue: levar) else { throw ValidationError("Use --levar resumo, resumo-novo, conversa ou nenhum") }
         let service = try makeService()
         try service.swapAgent(session, agent: agent, provider: provider, model: model, handoff: mode) { print($0) }
         print("pronto: sessão agora com \(agent)")

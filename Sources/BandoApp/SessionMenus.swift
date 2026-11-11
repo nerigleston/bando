@@ -182,6 +182,7 @@ struct AgentSwitcherPanel: View {
         }
         switch handoff {
         case .summary: return "O agente atual escreve .bando/handoff.md (comandos, decisões, pendências) e o novo começa lendo esse arquivo. O texto do pedido fica em Ajustes > Geral."
+        case .receiverSummary: return "O Bando exporta a conversa para .bando/conversa.md (só a partir do Claude Code) e o novo agente lê, escreve .bando/handoff.md e segue. Funciona mesmo se o agente atual parou ou bateu o limite; os tokens da leitura saem do novo provider."
         case .transcript: return "O Bando exporta a conversa inteira para .bando/handoff.md (só a partir do Claude Code) e o novo agente começa lendo."
         case .none: return "O novo agente começa só com a tarefa original e o código como está."
         }

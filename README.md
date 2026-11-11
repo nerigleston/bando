@@ -60,7 +60,7 @@ Quem já usa o Xirp pode trazer projetos, sessões, custos e PRs com `bando impo
 - Estados com cor e forma: trabalhando, esperando você (com a pergunta pendente), pronto para revisar, ocioso, erro.
 - Fila: uma sessão pode começar só quando outra terminar (`--depends-on`).
 - Parar, retomar com a mesma conversa, fork, renomear, fixar, terminal extra no worktree.
-- **Trocar de agente sem perder a sessão.** Mesmo agente com outro provider ou modelo: a conversa continua. Outro agente: ele recebe um `.bando/handoff.md` com um resumo escrito pelo agente anterior (comandos, decisões, pendências) ou com a conversa inteira. O texto do pedido de resumo é seu para editar.
+- **Trocar de agente sem perder a sessão.** Mesmo agente com outro provider ou modelo: a conversa continua. Outro agente: ele recebe um `.bando/handoff.md` com um resumo (comandos, decisões, pendências) ou com a conversa inteira. Você escolhe quem escreve o resumo: o agente que sai ou o que entra. O que entra lê a conversa exportada, o que serve quando o anterior bateu o limite. O texto do pedido de resumo é seu para editar.
 
 **Janela**
 - Lateral por projeto ou por urgência, com busca (⌘K).

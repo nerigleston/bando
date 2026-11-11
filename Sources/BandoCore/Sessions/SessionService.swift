@@ -347,19 +347,27 @@ public final class SessionService: @unchecked Sendable {
         case .none:
             return .none
         case .transcript:
-            if s.agent == "claude", let native = s.nativeId,
-               let md = Handoff.claudeTranscriptMarkdown(nativeId: native, title: s.name) {
-                try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try md.write(to: file, atomically: true, encoding: .utf8)
-                Handoff.ensureIgnored(worktree: s.worktreePath)
+            if try exportTranscript(s, to: file) {
                 progress("Conversa exportada para \(Handoff.relativePath)")
                 return .transcript
             }
             // Só há exportação do Claude Code; para os outros, pede o resumo.
             progress("Exportação da conversa só existe para o Claude Code; pedindo um resumo ao agente.")
             return try prepareHandoff(s, mode: .summary, live: live, tmux: tmux, progress: progress)
+        case .receiverSummary:
+            if try exportTranscript(s, to: Handoff.conversationURL(worktree: s.worktreePath)) {
+                progress("Conversa exportada para \(Handoff.conversationPath); o novo agente escreve o resumo.")
+                return .receiverSummary
+            }
+            progress("Exportação da conversa só existe para o Claude Code; pedindo o resumo ao agente atual.")
+            return try prepareHandoff(s, mode: .summary, live: live, tmux: tmux, progress: progress)
         case .summary:
             guard live else {
+                // Sem o agente atual, o novo resume a conversa exportada (se houver).
+                if try exportTranscript(s, to: Handoff.conversationURL(worktree: s.worktreePath)) {
+                    progress("O agente atual não está rodando; o novo agente vai resumir a conversa exportada.")
+                    return .receiverSummary
+                }
                 progress("O agente atual não está rodando; seguindo só com a tarefa.")
                 return .none
             }
@@ -391,11 +399,23 @@ public final class SessionService: @unchecked Sendable {
         }
     }
 
+    /// Grava a conversa do agente atual em Markdown. Falso se não há exportação
+    /// para esse agente (hoje só o Claude Code).
+    func exportTranscript(_ s: Session, to file: URL) throws -> Bool {
+        guard s.agent == "claude", let native = s.nativeId,
+              let md = Handoff.claudeTranscriptMarkdown(nativeId: native, title: s.name) else { return false }
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try md.write(to: file, atomically: true, encoding: .utf8)
+        Handoff.ensureIgnored(worktree: s.worktreePath)
+        return true
+    }
+
     func handoffPrompt(_ s: Session, from previous: String, carried: HandoffMode) -> String {
         let name = config.agents[previous]?.name ?? previous
         var text = "Você está continuando o trabalho desta sessão, que antes estava com o agente \(name)."
         switch carried {
         case .summary: text += " Leia primeiro o arquivo \(Handoff.relativePath): é um resumo escrito por ele, com comandos, decisões e próximos passos."
+        case .receiverSummary: text += " " + Handoff.receiverRequest()
         case .transcript: text += " Leia primeiro o arquivo \(Handoff.relativePath): é a conversa anterior completa."
         case .none: break
         }

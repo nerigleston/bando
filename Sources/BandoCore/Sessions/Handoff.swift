@@ -4,6 +4,10 @@ import Foundation
 public enum HandoffMode: String, Codable, Sendable, CaseIterable {
     /// O agente atual escreve um resumo em `.bando/handoff.md` antes de sair.
     case summary = "resumo"
+    /// O Bando exporta a conversa para `.bando/conversa.md` e o novo agente
+    /// escreve o resumo em `.bando/handoff.md` antes de seguir. Não depende
+    /// do agente atual estar rodando (serve quando ele bateu o limite).
+    case receiverSummary = "resumo-novo"
     /// O Bando exporta a conversa inteira para `.bando/handoff.md` (sem tokens).
     case transcript = "conversa"
     /// Só a tarefa original.
@@ -12,6 +16,7 @@ public enum HandoffMode: String, Codable, Sendable, CaseIterable {
     public var label: String {
         switch self {
         case .summary: "Resumo em .md (escrito pelo agente atual)"
+        case .receiverSummary: "Resumo em .md (escrito pelo novo agente)"
         case .transcript: "Conversa completa em .md"
         case .none: "Só a tarefa"
         }
@@ -21,9 +26,23 @@ public enum HandoffMode: String, Codable, Sendable, CaseIterable {
 /// Arquivo de repasse dentro do worktree, fora do git.
 public enum Handoff {
     public static let relativePath = ".bando/handoff.md"
+    /// Conversa exportada para o novo agente ler e resumir.
+    public static let conversationPath = ".bando/conversa.md"
 
     public static func url(worktree: String) -> URL {
         URL(fileURLWithPath: worktree).appendingPathComponent(relativePath)
+    }
+
+    public static func conversationURL(worktree: String) -> URL {
+        URL(fileURLWithPath: worktree).appendingPathComponent(conversationPath)
+    }
+
+    /// Pedido ao novo agente quando é ele quem escreve o resumo.
+    public static func receiverRequest() -> String {
+        "Antes de qualquer coisa, leia o arquivo \(conversationPath): é a conversa anterior completa. "
+            + "Escreva em \(relativePath), em Markdown e de forma objetiva: objetivo e estado atual do trabalho; "
+            + "comandos usados (build, testes, execução, deploy) exatamente como aparecem; decisões e particularidades combinadas; "
+            + "o que falta fazer; arquivos e pastas importantes. Depois continue o trabalho a partir desse resumo."
     }
 
     /// Texto do pedido de resumo: `~/.config/bando/handoff.md` (do usuário) ou o padrão.

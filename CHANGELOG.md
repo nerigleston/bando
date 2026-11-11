@@ -1,5 +1,10 @@
 # Mudanças
 
+## 0.1.28
+
+- Na troca de agente, você escolhe quem escreve o resumo: o agente que sai ou o que entra. Com "escrito pelo novo agente", o Bando exporta a conversa para `.bando/conversa.md` e o agente que entra lê, escreve `.bando/handoff.md` e segue. Funciona mesmo com o agente anterior parado ou sem limite. No terminal: `bando swap --levar resumo-novo`. A exportação só existe a partir do Claude Code.
+- Com "escrito pelo agente atual" e o agente parado, o novo agente passa a resumir a conversa exportada em vez de começar só com a tarefa.
+
 ## 0.1.27
 
 - Venice AI abre com o DeepSeek V4.1 Flash 1017 Uncensored como modelo padrão. A lista de modelos sugeridos foi atualizada com IDs atuais da Venice (Kimi K3.1 Pro, GLM 5.3, DeepSeek V4 Pro 0813, GPT-6 Sol e Claude Sonnet 5.5).

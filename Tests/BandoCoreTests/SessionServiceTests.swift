@@ -166,4 +166,28 @@ struct SessionServiceTests {
         #expect(Tmux.isIdleShell("node", userShell: "/bin/zsh") == false)
         #expect(Tmux.isIdleShell("claude", userShell: "/bin/zsh") == false)
     }
+
+    @Test("resumo pelo novo agente: o pedido manda ler a conversa exportada e escrever o handoff")
+    func receiverSummaryPrompt() throws {
+        let dir = try folder("repasse")
+        let project = try service.ensureProject(at: dir.path)
+        let s = try service.create(.init(project: project, prompt: "corrigir login", agent: "shell", startNow: false))
+        let text = service.handoffPrompt(s, from: "claude", carried: .receiverSummary)
+        #expect(text.contains(Handoff.conversationPath))
+        #expect(text.contains(Handoff.relativePath))
+        #expect(text.contains("Tarefa original: corrigir login"))
+    }
+
+    @Test("resumo pelo novo agente sem conversa exportável e sem agente rodando: segue só com a tarefa", .enabled(if: SessionServiceTests.hasTmux))
+    func receiverSummaryFallsBack() throws {
+        let dir = try folder("sem-conversa")
+        let project = try service.ensureProject(at: dir.path)
+        let s = try service.create(.init(project: project, prompt: "x", agent: "shell", startNow: false))
+        let tmux = try Tmux(server: "bando-test-\(UUID().uuidString.prefix(6))")
+        var messages: [String] = []
+        let carried = try service.prepareHandoff(s, mode: .receiverSummary, live: false, tmux: tmux) { messages.append($0) }
+        #expect(carried == HandoffMode.none)
+        #expect(!FileManager.default.fileExists(atPath: Handoff.conversationURL(worktree: s.worktreePath).path))
+        #expect(messages.count == 2)
+    }
 }
