@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.1.30
+
+- Texto copiado de uma sessão e colado fora do Bando mantém os acentos. Com o app aberto pelo Dock ou pelo Finder, as sessões rodavam sem `LANG`, e o `pbcopy` do agente gravava o texto como Mac Roman ("só" virava "s√≥"). Agora toda sessão recebe um `LANG` UTF-8 (o idioma do macOS, ou `en_US.UTF-8`), inclusive o shell que fica depois que o agente sai. Sessões já abertas pegam a correção ao parar e retomar.
+
 ## 0.1.29
 
 - O painel de arquivos mostra tudo, inclusive o que o git ignora (`.env`, `node_modules`, `.venv`), mais apagado. Só `.git` e `.DS_Store` ficam escondidos.

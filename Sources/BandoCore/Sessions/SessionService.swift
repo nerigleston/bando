@@ -197,7 +197,12 @@ public final class SessionService: @unchecked Sendable {
         var env = ["BANDO_SESSION_ID": session.id, "BANDO_PROJECT_ID": session.projectId,
                    "BANDO_CONFIG_DIR": paths.configDir.path, "BANDO_STATE_DIR": paths.stateDir.path]
         let current = ProcessInfo.processInfo.environment
-        for key in ["BANDO_CLI", "LANG", "LC_ALL"] where current[key] != nil { env[key] = current[key] }
+        if let cli = current["BANDO_CLI"] { env["BANDO_CLI"] = cli }
+        // Sempre UTF-8, mesmo com o app aberto pelo Finder (sem LANG): sem isso
+        // o pbcopy do agente grava acentos como Mac Roman.
+        env["LANG"] = UTF8Locale.lang(env: current)
+        // LC_ALL vence o LANG; só passa adiante se também for UTF-8.
+        if let all = current["LC_ALL"], UTF8Locale.isUTF8(all) { env["LC_ALL"] = all }
         return env
     }
 

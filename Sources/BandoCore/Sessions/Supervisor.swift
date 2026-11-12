@@ -172,6 +172,7 @@ public final class Supervisor: @unchecked Sendable {
         signal(SIGINT, SIG_DFL); signal(SIGQUIT, SIG_DFL); signal(SIGTSTP, SIG_DFL)
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
         setenv("PATH", ExecutableLocator.shared.pathValue, 1)
+        setenv("LANG", UTF8Locale.lang(), 1)
         let args = [strdup(shell), strdup("-l"), nil]
         execv(shell, args)
         exit(0)

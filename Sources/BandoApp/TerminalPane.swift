@@ -28,7 +28,7 @@ struct TerminalPane: NSViewRepresentable {
         view.optionAsMetaKeyForFunctionalKeys = true
         apply(to: view)
         var env = Terminal.getEnvironmentVariables(termName: "xterm-256color", trueColor: true)
-        env.append("LANG=\(ProcessInfo.processInfo.environment["LANG"] ?? "pt_BR.UTF-8")")
+        env.append("LANG=\(UTF8Locale.lang())")
         env.append("PATH=\(ExecutableLocator.shared.pathValue)")
         view.startProcess(
             executable: argv[0], args: Array(argv.dropFirst()), environment: env,
