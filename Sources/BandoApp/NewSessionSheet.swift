@@ -39,7 +39,7 @@ struct NewSessionSheet: View {
                     .padding(.vertical, 6)
                     .frame(minHeight: 90, maxHeight: 180)
                     .fieldBox(height: nil)
-                Text("Pode deixar vazio para abrir o agente e escrever lá.")
+                Text("Pode deixar vazio para abrir o agente e escrever lá. Imagem colada com ⌘V entra como caminho do arquivo.")
                     .font(.system(size: 11.5)).foregroundStyle(p.tertiary)
             }
             VStack(alignment: .leading, spacing: 6) {

@@ -56,7 +56,9 @@ Quem já usa o Xirp pode trazer projetos, sessões, custos e PRs com `bando impo
 ## Recursos
 
 **Sessões**
-- Worktree e branch por sessão, sem copiar o repositório (fica no mesmo disco, ao lado do projeto).
+- Worktree e branch por sessão, sem copiar o repositório (fica no mesmo disco, ao lado do projeto). O branch ganha o nome do título da sessão (`bando/corrigir-login-6c19`).
+- Worktree pronto para rodar: os `.env` da pasta principal vêm junto, outros arquivos ignorados entram listados num `.worktreeinclude`, e o script de setup do projeto (ex.: `npm install`) roda uma vez antes do agente.
+- Sem a pergunta "confia nesta pasta?" a cada worktree: com o repositório já confiável para o Claude Code, o Bando confirma por você.
 - Estados com cor e forma: trabalhando, esperando você (com a pergunta pendente), pronto para revisar, ocioso, erro.
 - Fila: uma sessão pode começar só quando outra terminar (`--depends-on`).
 - Parar, retomar com a mesma conversa, fork, renomear, fixar, terminal extra no worktree.
@@ -67,6 +69,7 @@ Quem já usa o Xirp pode trazer projetos, sessões, custos e PRs com `bando impo
 - Grade até 4×4 com divisórias arrastáveis. Clique duplo abre só a sessão.
 - 15 temas (Bando Escuro e Claro, Dracula, Nord, Gruvbox, Solarized, Catppuccin, Tokyo Night, One Dark, GitHub, Monokai) e os seus. O tema muda a janela inteira, não só o terminal.
 - Notificações do macOS quando uma sessão espera você, com selo no Dock.
+- Terminal que conhece cada agente: links com ⌘+clique (inclusive os de texto do Claude Code), cópia com acentos, imagem colada vira anexo, nome da sessão lido do título que o agente escreve (sem gastar tokens).
 
 **Custos e relatórios**
 - Anel de contexto em cada sessão: quanto da janela do modelo já foi usado, tokens e custo.

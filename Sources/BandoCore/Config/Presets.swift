@@ -48,6 +48,8 @@ public enum Presets {
     hooks    = "claude"
     # Título no terminal: "✳ <resumo>" parado, um ponto braille girando no lugar do ✳ enquanto trabalha.
     terminal_title = '^[✳⠀-⣿] (.+)$'
+    # Confiança na pasta: com o repositório principal confiável no ~/.claude.json, responde sim no worktree.
+    trust    = "claude"
     install  = "curl -fsSL https://claude.ai/install.sh | bash"
     update   = "claude update"
 

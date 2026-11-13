@@ -45,10 +45,13 @@ public final class Supervisor: @unchecked Sendable {
         signal(SIGQUIT, SIG_IGN)
         signal(SIGTSTP, SIG_IGN)
 
-        if !resume, let project = try? service.store.project(session.projectId),
-           let setup = project.setupScript, !setup.isEmpty, session.usesWorktree {
+        // Setup do projeto: uma vez por worktree (não repete ao trocar de agente).
+        if !resume, session.usesWorktree, let project = try? service.store.project(session.projectId),
+           let setup = project.setupScript, !setup.isEmpty,
+           !((try? service.store.events(sessionId: session.id)) ?? []).contains(where: { $0.kind == "setup" }) {
             banner("setup do projeto: \(setup)")
             let status = runShell(setup, cwd: session.worktreePath)
+            try? service.record(session.id, kind: "setup", detail: status == 0 ? nil : "saiu com código \(status)")
             if status != 0 { banner("setup saiu com código \(status); continuando") }
         }
 
@@ -103,7 +106,9 @@ public final class Supervisor: @unchecked Sendable {
         // os hooks não cobrem (ex.: confiança na pasta do Claude Code).
         let watcher: OutputWatcher? = (mode != .none || plan.pendingKeys != nil)
             ? OutputWatcher(supervisor: self, agent: agent, mode: mode, pendingKeys: plan.pendingKeys,
-                            worktree: session.worktreePath, usesWorktree: session.usesWorktree)
+                            worktree: session.worktreePath, usesWorktree: session.usesWorktree,
+                            trustRepo: session.usesWorktree ? (try? service.store.project(session.projectId))?.path : nil,
+                            env: env)
             : nil
         watcher?.start()
 
@@ -222,8 +227,17 @@ final class OutputWatcher: @unchecked Sendable {
     /// disso é eco de digitação ou cursor piscando.
     static let activityThreshold = 160
 
+    /// Repositório principal (worktree): com ele confiável, responde sim à
+    /// pergunta de confiança do agente uma vez, logo no começo.
+    let trustRepo: String?
+    let env: [String: String]
+    var trustAnswered = false
+    let startedAt = Date()
+
     init(supervisor: Supervisor, agent: AgentDefinition, mode: StatusMode, pendingKeys: String?,
-         worktree: String, usesWorktree: Bool) {
+         worktree: String, usesWorktree: Bool, trustRepo: String? = nil, env: [String: String] = [:]) {
+        self.trustRepo = trustRepo
+        self.env = env
         self.supervisor = supervisor
         self.agent = agent
         self.mode = mode
@@ -317,6 +331,7 @@ final class OutputWatcher: @unchecked Sendable {
         let screen = (try? Tmux(server: supervisor.tmuxServer))?.capture(supervisor.paneTarget, lines: 40) ?? ""
         let lines = screen.split(separator: "\n", omittingEmptySubsequences: true).suffix(15).map(String.init)
         let tail = lines.joined(separator: "\n")
+        if answerTrustPrompt(tail) { armTimer(after: 2); return }
         let waitingMatch = waiting.flatMap { tail.firstMatch(of: $0) }
         if mode == .hooks {
             // Hooks mandam no estado; aqui só entram perguntas fora dos hooks.
@@ -360,6 +375,21 @@ final class OutputWatcher: @unchecked Sendable {
         }
         if let waiting, let line = trimmed.last(where: { $0.firstMatch(of: waiting) != nil }) { return line }
         return nil
+    }
+
+    /// Pergunta de confiança na tela, nos primeiros 60 s, com o repositório
+    /// principal já confiável: confirma uma vez. Fora disso, a pergunta fica
+    /// para você (e a sessão aparece como esperando).
+    func answerTrustPrompt(_ tail: String) -> Bool {
+        guard !trustAnswered, let adapter = agent.trust, let repo = trustRepo,
+              Date().timeIntervalSince(startedAt) < 60,
+              tail.firstMatch(of: adapter.prompt) != nil,
+              adapter.isTrusted(repo, env: env),
+              let tmux = try? Tmux(server: supervisor.tmuxServer) else { return false }
+        trustAnswered = true
+        _ = try? tmux.tmux(["send-keys", "-t", "=\(supervisor.tmuxName):", adapter.confirmKey])
+        try? supervisor.service.record(supervisor.sessionId, kind: "trust-auto", detail: "repositório confiável: \(repo)")
+        return true
     }
 
     func set(_ status: SessionStatus, detail: String?) {

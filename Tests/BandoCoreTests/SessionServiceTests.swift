@@ -206,10 +206,15 @@ struct SessionServiceTests {
         for f in [".env", ".env-all", "api/.env", "node_modules/pkg/.env"] {
             try "SEGREDO=1\n".write(to: repo.appendingPathComponent(f), atomically: true, encoding: .utf8)
         }
+        // .worktreeinclude: leva outros ignorados (aqui, o modelo local), não o node_modules.
+        try "models/*.bin\n".write(to: repo.appendingPathComponent(".worktreeinclude"), atomically: true, encoding: .utf8)
+        try fm.createDirectory(at: repo.appendingPathComponent("models"), withIntermediateDirectories: true)
+        try "bin\n".write(to: repo.appendingPathComponent("models/local.bin"), atomically: true, encoding: .utf8)
+        try "models/\n".write(to: repo.appendingPathComponent(".git/info/exclude"), atomically: true, encoding: .utf8)
         let project = try service.ensureProject(at: repo.path)
         let s = try service.create(.init(project: project, prompt: "env", agent: "shell", startNow: false))
         let wt = URL(fileURLWithPath: s.worktreePath)
-        for f in [".env", ".env-all", "api/.env", ".env.example"] {
+        for f in [".env", ".env-all", "api/.env", ".env.example", "models/local.bin"] {
             #expect(fm.fileExists(atPath: wt.appendingPathComponent(f).path), "\(f) no worktree")
         }
         #expect(!fm.fileExists(atPath: wt.appendingPathComponent("node_modules").path))

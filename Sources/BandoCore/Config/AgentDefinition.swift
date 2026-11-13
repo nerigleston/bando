@@ -62,6 +62,9 @@ public struct AgentDefinition: Sendable, Equatable {
     /// Regex sobre o título que o agente põe no terminal (OSC 0/2); o grupo 1
     /// vira o nome da sessão, sem chamar modelo. Ex.: Claude "✳ Corrigir login".
     public var terminalTitle: String?
+    /// Responde sozinho à pergunta de confiança no worktree quando o repositório
+    /// principal já é confiável para o agente (ver `TrustAdapter`).
+    public var trust: TrustAdapter?
 }
 
 /// Forma "parcial" lida do TOML. Tudo opcional para permitir que o arquivo do
@@ -92,10 +95,11 @@ struct AgentEntry: Codable, Sendable {
     var title: [String]?
     var titleModel: String?
     var terminalTitle: String?
+    var trust: TrustAdapter?
 
     enum CodingKeys: String, CodingKey {
         case name, cmd, prompt, fresh, fork, resume, `continue`, model, args, env, status
-        case hooks, busy, waiting, version, install, update, enabled, mcp, title
+        case hooks, busy, waiting, version, install, update, enabled, mcp, title, trust
         case titleModel = "title_model"
         case terminalTitle = "terminal_title"
         case idleAfter = "idle_after"
@@ -130,7 +134,8 @@ struct AgentEntry: Codable, Sendable {
             enabled: o.enabled ?? enabled,
             title: o.title ?? title,
             titleModel: o.titleModel ?? titleModel,
-            terminalTitle: o.terminalTitle ?? terminalTitle
+            terminalTitle: o.terminalTitle ?? terminalTitle,
+            trust: o.trust ?? trust
         )
     }
 
@@ -173,7 +178,8 @@ struct AgentEntry: Codable, Sendable {
             update: update,
             title: title ?? [],
             titleModel: titleModel,
-            terminalTitle: terminalTitle
+            terminalTitle: terminalTitle,
+            trust: trust
         )
     }
 }

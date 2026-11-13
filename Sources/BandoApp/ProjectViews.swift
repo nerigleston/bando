@@ -283,6 +283,7 @@ struct ProjectPage: View {
     let projectId: String
     @State private var search = ""
     @State private var showWorktrees = false
+    @State private var showSettings = false
 
     var project: Project? { model.project(projectId) }
     var sessions: [Session] { model.sessions.filter { $0.projectId == projectId } }
@@ -327,10 +328,18 @@ struct ProjectPage: View {
             }
             Spacer()
             if let proj = project {
+                if !proj.isGeneral {
+                    IconButton(symbol: "gearshape", help: "Configurar projeto (setup do worktree, branch base)", size: 15) {
+                        showSettings = true
+                    }
+                }
                 IconButton(symbol: "folder", help: "Mostrar no Finder", size: 15) {
                     NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: proj.path)])
                 }
             }
+        }
+        .sheet(isPresented: $showSettings) {
+            if let proj = project { ProjectSettingsSheet(project: proj).environment(model).environment(\.palette, p) }
         }
     }
 
@@ -671,5 +680,66 @@ struct ImportWorkspaceSheet: View {
         model.refreshSessions()
         model.sidebarMode = .projects
         dismiss()
+    }
+}
+
+/// Configurações do projeto: script de setup do worktree novo e branch base.
+struct ProjectSettingsSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.palette) private var p
+    let project: Project
+    @State private var setup = ""
+    @State private var base = ""
+    @State private var error: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            DialogHeader(title: "Configurar \(project.name)", description: "Vale para as próximas sessões deste projeto.",
+                         symbol: "gearshape")
+            VStack(alignment: .leading, spacing: 6) {
+                FieldLabel("Setup do worktree", hint: "opcional")
+                TextEditor(text: $setup)
+                    .font(.system(size: 12, design: .monospaced))
+                    .scrollContentBackground(.hidden)
+                    .padding(.vertical, 6)
+                    .frame(minHeight: 70, maxHeight: 140)
+                    .fieldBox(height: nil)
+                Text("Roda uma vez no terminal da sessão nova, antes do agente (ex.: npm install). Os .env da pasta principal já são copiados; para levar outros arquivos ignorados, liste-os num .worktreeinclude na raiz do repositório.")
+                    .font(.system(size: 11.5)).foregroundStyle(p.tertiary).fixedSize(horizontal: false, vertical: true)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                FieldLabel("Branch base", hint: "opcional")
+                TextField("o branch atual do repositório", text: $base).fieldBox()
+            }
+            if let error { Text(error).font(.system(size: 12)).foregroundStyle(StateColor.failed) }
+            HStack(spacing: 8) {
+                Spacer()
+                Button("Cancelar") { dismiss() }.buttonStyle(OutlineButtonStyle()).keyboardShortcut(.cancelAction)
+                Button("Salvar", action: save).buttonStyle(AccentButtonStyle()).keyboardShortcut(.defaultAction)
+            }
+        }
+        .dialog(width: 520, palette: p)
+        .onAppear {
+            setup = project.setupScript ?? ""
+            base = project.baseBranch ?? ""
+        }
+    }
+
+    func save() {
+        guard let service = model.service else { return }
+        do {
+            guard var current = try service.store.project(project.id) else { dismiss(); return }
+            let s = setup.trimmingCharacters(in: .whitespacesAndNewlines)
+            let b = base.trimmingCharacters(in: .whitespacesAndNewlines)
+            current.setupScript = s.isEmpty ? nil : s
+            current.baseBranch = b.isEmpty ? nil : b
+            try service.store.pool.write { db in try current.update(db) }
+            ChangeNotifier.post()
+            model.refreshSessions()
+            dismiss()
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 }

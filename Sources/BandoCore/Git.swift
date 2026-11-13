@@ -50,28 +50,48 @@ public struct Git: Sendable {
         }
     }
 
-    /// Copia para o worktree novo os arquivos de ambiente que o git ignora
-    /// (`.env`, `.env.local`, `.env-all`...) e que, por isso, o `git worktree`
-    /// não leva. Procura em todo o repositório, menos dentro de pastas
-    /// ignoradas (`node_modules` etc.). Não sobrescreve. Devolve os caminhos
-    /// relativos copiados.
+    /// Copia para o worktree novo arquivos que o git ignora e que, por isso, o
+    /// `git worktree` não leva:
+    /// - os de ambiente (`.env`, `.env.local`, `.env-all`...), sempre;
+    /// - os que casam com os padrões do `.worktreeinclude` na raiz (mesma
+    ///   sintaxe do `.gitignore`, convenção também usada pelo Codex).
+    /// Os .env dentro de pastas ignoradas (`node_modules` etc.) ficam de fora.
+    /// Não sobrescreve. Devolve os caminhos relativos copiados.
     @discardableResult
     public func copyEnvFiles(from repo: String, to worktree: String) -> [String] {
-        guard let root = repositoryRoot(of: repo),
-              let r = try? Shell.run(executable, ["ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory"], cwd: root),
-              r.ok else { return [] }
+        guard let root = repositoryRoot(of: repo) else { return [] }
+        var wanted: [String] = []
+        if let r = try? Shell.run(executable, ["ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory"], cwd: root), r.ok {
+            wanted = r.stdout.split(separator: "\0").map(String.init).filter(Self.isEnvFile)
+        }
+        wanted += includedFiles(root: root)
         let fm = FileManager.default
         var copied: [String] = []
-        for rel in r.stdout.split(separator: "\0").map(String.init) where Self.isEnvFile(rel) {
+        for rel in Array(Set(wanted)).sorted().prefix(5000) {
             let src = URL(fileURLWithPath: root).appendingPathComponent(rel)
             let dst = URL(fileURLWithPath: worktree).appendingPathComponent(rel)
             guard !fm.fileExists(atPath: dst.path),
                   let size = (try? fm.attributesOfItem(atPath: src.path))?[.size] as? NSNumber,
-                  size.int64Value <= 1_000_000 else { continue }
+                  size.int64Value <= 50_000_000 else { continue }
             try? fm.createDirectory(at: dst.deletingLastPathComponent(), withIntermediateDirectories: true)
             if (try? fm.copyItem(at: src, to: dst)) != nil { copied.append(rel) }
         }
         return copied
+    }
+
+    /// Arquivos ignorados pelo git que casam com o `.worktreeinclude`.
+    func includedFiles(root: String) -> [String] {
+        let include = URL(fileURLWithPath: root).appendingPathComponent(".worktreeinclude").path
+        guard FileManager.default.fileExists(atPath: include),
+              // Não versionados que casam com os padrões do arquivo...
+              let r = try? Shell.run(executable, ["ls-files", "-z", "--others", "--ignored", "--exclude-from=\(include)"], cwd: root),
+              r.ok else { return [] }
+        let candidates = r.stdout.split(separator: "\0").map(String.init).filter { !$0.hasSuffix("/") }
+        guard !candidates.isEmpty,
+              // ...e que o git ignora de fato (o resto já vem no checkout ou é lixo local).
+              let ignored = try? Shell.run(executable, ["check-ignore", "--stdin"], cwd: root,
+                                           input: candidates.joined(separator: "\n") + "\n") else { return [] }
+        return ignored.stdout.split(separator: "\n").map(String.init)
     }
 
     /// `.env` ou variações (`.env.local`, `.env-all`, `.env_prod`). Pasta não conta.

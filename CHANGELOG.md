@@ -1,5 +1,12 @@
 # Mudanças
 
+## 0.1.34
+
+- Imagem colada com ⌘V na tarefa da nova sessão (e no campo do projeto) vira um PNG e entra como caminho do arquivo. Antes o campo ignorava a imagem. Arquivo copiado no Finder entra pelo caminho.
+- Configurar projeto (botão de engrenagem na página do projeto): script de setup do worktree e branch base, que antes só existiam pelo CLI. O setup roda uma vez por worktree; trocar de agente não repete.
+- `.worktreeinclude` na raiz do repositório (sintaxe do `.gitignore`, a mesma convenção do Codex): arquivos ignorados que casam com ele são copiados para o worktree novo, além dos `.env`.
+- Pergunta de confiança do Claude Code no worktree: se o repositório principal (ou uma pasta acima) já é confiável no `~/.claude.json`, o Bando responde sim, uma vez, no primeiro minuto. O Bando só lê esse arquivo. Sem confiança prévia, a pergunta continua para você.
+
 ## 0.1.33
 
 - Nome da sessão sem custo: o Bando lê o título que o agente escreve no terminal (o Claude Code põe "✳ resumo", o Codex põe o nome da conversa). O padrão de cada agente fica no catálogo (`terminal_title`). Para esses agentes, o título por modelo só é pedido se depois de 30 segundos o agente ainda não tiver dado nome.
