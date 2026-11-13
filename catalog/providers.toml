@@ -983,7 +983,10 @@ name   = "Ollama (local)"
 models = ["qwen3.5", "gpt-oss:120b", "gpt-oss:20b"]
 
 [providers.ollama.for.claude]
-env = { ANTHROPIC_BASE_URL = "http://localhost:11434", ANTHROPIC_AUTH_TOKEN = "ollama", ANTHROPIC_API_KEY = "" }
+# API_TIMEOUT_MS: modelo local lê o primeiro pedido do Claude Code (~27 mil tokens) em minutos; com o
+# limite padrão o Claude Code desiste em 5 min e recomeça. Medido em 13/11/2026: qwen3 8b num Mac de 16 GB,
+# 55 a 100 tokens/s de leitura. O Ollama também precisa de OLLAMA_CONTEXT_LENGTH maior que o padrão (4096).
+env = { ANTHROPIC_BASE_URL = "http://localhost:11434", ANTHROPIC_AUTH_TOKEN = "ollama", ANTHROPIC_API_KEY = "", API_TIMEOUT_MS = "3000000" }
 
 [providers.ollama.for.codex]
 args = ["--oss", "-c", "oss_provider=\"ollama\""]
