@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.1.31
+
+- ⌘+clique abre os links com texto do agente (como as fontes que o Claude Code lista). O tmux descartava o endereço desses links (OSC 8) e só o texto azul chegava ao terminal. O Bando agora liga os hyperlinks no servidor tmux dele, também para sessões já abertas depois que o terminal reconecta.
+
 ## 0.1.30
 
 - Texto copiado de uma sessão e colado fora do Bando mantém os acentos. Com o app aberto pelo Dock ou pelo Finder, as sessões rodavam sem `LANG`, e o `pbcopy` do agente gravava o texto como Mac Roman ("só" virava "s√≥"). Agora toda sessão recebe um `LANG` UTF-8 (o idioma do macOS, ou `en_US.UTF-8`), inclusive o shell que fica depois que o agente sai. Sessões já abertas pegam a correção ao parar e retomar.

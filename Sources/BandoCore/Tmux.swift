@@ -42,6 +42,16 @@ public struct Tmux: Sendable {
             // set-option não aceita o prefixo "=" (has-session aceita).
             _ = try? tmux(["set-option", "-t", name, opt[0], opt[1]])
         }
+        enableHyperlinks()
+    }
+
+    /// Links OSC 8 (texto clicável com o endereço escondido, como as fontes
+    /// do Claude Code) só passam pelo tmux se o terminal anunciar "hyperlinks",
+    /// e o padrão do tmux para xterm não anuncia: o link chegava só como texto
+    /// e o ⌘+clique não abria. Índice fixo para não repetir a cada sessão; vale
+    /// para os terminais que se conectam depois.
+    func enableHyperlinks() {
+        _ = try? tmux(Self.hyperlinksOption)
     }
 
     public func kill(_ name: String) throws {
@@ -93,7 +103,15 @@ public struct Tmux: Sendable {
     }
 
     /// Comando para anexar (usado pelo terminal do app e por `bando attach`).
+    /// No servidor do Bando liga os links OSC 8 antes, no mesmo comando: as
+    /// funções do terminal são lidas quando ele se conecta, então isso cobre
+    /// sessões criadas antes da opção existir. O servidor padrão do usuário
+    /// (sessões adotadas do Xirp) não é mexido.
     public func attachCommand(_ name: String) -> [String] {
-        [executable] + serverArgs + ["attach-session", "-t", "=\(name)"]
+        let attach = ["attach-session", "-t", "=\(name)"]
+        guard server != "default" else { return [executable] + serverArgs + attach }
+        return [executable] + serverArgs + Self.hyperlinksOption + [";"] + attach
     }
+
+    static let hyperlinksOption = ["set-option", "-s", "terminal-features[90]", "xterm*:hyperlinks"]
 }
