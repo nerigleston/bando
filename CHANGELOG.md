@@ -1,5 +1,11 @@
 # Mudanças
 
+## Próxima versão
+
+- OpenCode recebe o modelo da sessão. A versão 2 não tem `--model` na tela interativa e usava sempre o modelo do `opencode.json`. Agora o Bando passa o modelo em `OPENCODE_CONFIG_CONTENT` e abre o OpenCode com `--standalone`: o servidor compartilhado dele ignorava essa variável, inclusive os servidores MCP do Bando, que também vão nela.
+- Prefixo do provider no nome do modelo (`model_prefix` na variante do provider). O OpenCode exige `ollama/`, `openrouter/` ou `venice/` antes do modelo, e o Aider `ollama_chat/`, `openrouter/` ou `lm_studio/`. O Bando acrescenta quando falta.
+- Compressão com modelo local: o Headroom passa a esperar até 50 minutos pela resposta. O padrão dele (5 minutos) derrubava os pedidos do Claude Code ao Ollama.
+
 ## 0.1.38
 
 - Sessão com provider e sem modelo escolhido usa o modelo padrão do provider (o primeiro da lista). Antes, a janela Nova sessão (⌘N) e o `bando new` sem `-m` deixavam o modelo vazio, e o agente pedia o modelo dele: com o Ollama, o Claude Code pedia Opus e recebia 404.

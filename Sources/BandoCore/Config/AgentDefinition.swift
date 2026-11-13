@@ -65,6 +65,9 @@ public struct AgentDefinition: Sendable, Equatable {
     /// Responde sozinho à pergunta de confiança no worktree quando o repositório
     /// principal já é confiável para o agente (ver `TrustAdapter`).
     public var trust: TrustAdapter?
+    /// Agente que recebe o modelo dentro de um JSON de configuração numa
+    /// variável de ambiente, em vez de argumento (ex.: OpenCode v2).
+    public var modelConfig: ModelConfigTarget? = nil
 }
 
 /// Forma "parcial" lida do TOML. Tudo opcional para permitir que o arquivo do
@@ -96,6 +99,7 @@ struct AgentEntry: Codable, Sendable {
     var titleModel: String?
     var terminalTitle: String?
     var trust: TrustAdapter?
+    var modelConfig: ModelConfigTarget?
 
     enum CodingKeys: String, CodingKey {
         case name, cmd, prompt, fresh, fork, resume, `continue`, model, args, env, status
@@ -105,6 +109,7 @@ struct AgentEntry: Codable, Sendable {
         case idleAfter = "idle_after"
         case promptVia = "prompt_via"
         case assignId = "assign_id"
+        case modelConfig = "model_config"
     }
 
     /// Campos de `override` vencem; os ausentes ficam com o valor de `self`.
@@ -135,7 +140,8 @@ struct AgentEntry: Codable, Sendable {
             title: o.title ?? title,
             titleModel: o.titleModel ?? titleModel,
             terminalTitle: o.terminalTitle ?? terminalTitle,
-            trust: o.trust ?? trust
+            trust: o.trust ?? trust,
+            modelConfig: o.modelConfig ?? modelConfig
         )
     }
 
@@ -149,6 +155,9 @@ struct AgentEntry: Codable, Sendable {
             if let pattern, (try? Regex(pattern)) == nil {
                 throw ConfigError.invalidRegex(section: "agents.\(id)", field: field, pattern: pattern)
             }
+        }
+        if let mc = modelConfig, mc.env.isEmpty || mc.key.isEmpty {
+            throw ConfigError.invalidValue(section: "agents.\(id)", field: "model_config", detail: "precisa de env e key")
         }
         if let idleAfter, idleAfter < 1 {
             throw ConfigError.invalidValue(section: "agents.\(id)", field: "idle_after", detail: "precisa ser 1 ou mais")
@@ -179,7 +188,16 @@ struct AgentEntry: Codable, Sendable {
             title: title ?? [],
             titleModel: titleModel,
             terminalTitle: terminalTitle,
-            trust: trust
+            trust: trust,
+            modelConfig: modelConfig
         )
     }
+}
+
+/// Onde o modelo vai quando o agente o lê de um JSON de configuração:
+/// `model_config = { env = "OPENCODE_CONFIG_CONTENT", key = "model" }`.
+/// Se a variável já tiver um JSON (ex.: servidores MCP), a chave é acrescentada a ele.
+public struct ModelConfigTarget: Codable, Sendable, Equatable {
+    public var env: String
+    public var key: String
 }

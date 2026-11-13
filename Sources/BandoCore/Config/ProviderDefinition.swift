@@ -36,13 +36,16 @@ public struct ProviderDefinition: Sendable, Equatable, Identifiable {
             env.merge(v.env) { _, new in new }
             args += v.args
         }
-        return ProviderVariant(env: env, args: args)
+        return ProviderVariant(env: env, args: args, modelPrefix: variants[agent]?.modelPrefix)
     }
 }
 
 public struct ProviderVariant: Sendable, Equatable {
     public var env: [String: SecretValue]
     public var args: [String]
+    /// Prefixo que o agente exige no nome do modelo deste provider (ex.: "ollama/"
+    /// no OpenCode, "ollama_chat/" no Aider). Só entra se o modelo ainda não o tiver.
+    public var modelPrefix: String? = nil
 }
 
 /// Valor de uma variável de ambiente do provider.
@@ -90,6 +93,7 @@ public enum SecretValue: Sendable, Equatable, CustomStringConvertible {
 struct ProviderVariantEntry: Codable, Sendable {
     var env: [String: String]?
     var args: [String]?
+    var model_prefix: String?
 }
 
 struct ProviderEntry: Codable, Sendable {
@@ -105,7 +109,8 @@ struct ProviderEntry: Codable, Sendable {
         var variants = self.for ?? [:]
         for (agent, v) in o.for ?? [:] {
             let base = variants[agent]
-            variants[agent] = ProviderVariantEntry(env: v.env ?? base?.env, args: v.args ?? base?.args)
+            variants[agent] = ProviderVariantEntry(env: v.env ?? base?.env, args: v.args ?? base?.args,
+                                                   model_prefix: v.model_prefix ?? base?.model_prefix)
         }
         return ProviderEntry(
             name: o.name ?? name,
@@ -124,7 +129,8 @@ struct ProviderEntry: Codable, Sendable {
         for (agent, v) in self.for ?? [:] {
             variants[agent] = ProviderVariant(
                 env: try Self.parseEnv(v.env, section: "\(section).for.\(agent)"),
-                args: v.args ?? []
+                args: v.args ?? [],
+                modelPrefix: v.model_prefix.flatMap { $0.isEmpty ? nil : $0 }
             )
         }
         return ProviderDefinition(

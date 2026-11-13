@@ -75,7 +75,10 @@ public struct LaunchPlan: Sendable, Equatable {
         }
 
         var values: [String: String] = [:]
-        values["model"] = req.model.flatMap { $0.isEmpty ? nil : $0 }
+        // O agente pode exigir o provider no nome do modelo ("ollama/qwen3").
+        var model = req.model.flatMap { $0.isEmpty ? nil : $0 }
+        if let m = model, let prefix = providerSettings?.modelPrefix, !m.hasPrefix(prefix) { model = prefix + m }
+        values["model"] = model
         values["session_id"] = req.sessionId
         values["worktree"] = req.worktree
         values["branch"] = req.branch
@@ -109,6 +112,9 @@ public struct LaunchPlan: Sendable, Equatable {
         for (k, v) in providerSettings?.env ?? [:] { env[k] = v }
         for (k, v) in req.mcp.env { env[k] = v }
         if let id = req.sessionId { env["BANDO_SESSION_ID"] = .literal(id) }
+        if let target = agent.modelConfig, let model {
+            env[target.env] = .literal(Self.mergeJSON(env[target.env], key: target.key, value: model))
+        }
 
         let keys = (!wantsArgsPrompt && !(req.prompt ?? "").isEmpty) ? req.prompt : nil
         var plan = LaunchPlan(argv: argv, env: env, pendingKeys: keys, files: req.mcp.files)
@@ -116,6 +122,19 @@ public struct LaunchPlan: Sendable, Equatable {
             try plan.route(through: compressor, agent: agent, cmdTokens: cmdTokens)
         }
         return plan
+    }
+
+    /// Acrescenta `key: value` ao JSON que já estiver na variável (ex.: o dos
+    /// servidores MCP). Sem JSON válido lá, começa um novo.
+    static func mergeJSON(_ current: SecretValue?, key: String, value: String) -> String {
+        var object: [String: Any] = [:]
+        if case .literal(let text)? = current, let data = text.data(using: .utf8),
+           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            object = parsed
+        }
+        object[key] = value
+        let data = (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data()
+        return String(data: data, encoding: .utf8) ?? "{}"
     }
 
     /// Expande placeholders `{x}` num grupo de argumentos. Se algum placeholder
