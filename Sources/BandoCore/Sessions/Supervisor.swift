@@ -189,7 +189,7 @@ public final class Supervisor: @unchecked Sendable {
     /// sai, ou quando o supervisor recebe SIGHUP/SIGTERM (tmux encerrado).
     func startProxy(_ template: LaunchPlan, session: Session) throws -> (plan: LaunchPlan, pid: pid_t) {
         guard let port = Self.freePort() else { throw BandoError.invalid("não achei uma porta livre para o compressor") }
-        let plan = template.binding(port: port)
+        let plan = template.binding(port: port, statsFile: service.paths.compressorStatsFile(sessionId: session.id).path)
         guard let proxy = plan.proxy else { return (plan, 0) }
         guard let exe = ExecutableLocator.shared.locate(proxy.argv[0]) else {
             let hint = proxy.install.map { "\nInstalar: \($0)" } ?? ""

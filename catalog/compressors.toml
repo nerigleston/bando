@@ -8,6 +8,9 @@
 #   cmd, args   comando do proxy. {port} vira a porta escolhida na hora.
 #   env         ambiente extra do proxy (sem segredos: a chave do provider vai no pedido do agente).
 #   install     comando de instalação, mostrado quando o binário não existe.
+#   stats_args  argumentos do proxy que gravam um JSONL por pedido. {stats} vira o arquivo da sessão.
+#   stats_before, stats_after  campos do JSONL com os tokens de entrada antes e depois da compressão.
+#               O app soma esses campos e mostra a economia no cabeçalho da sessão.
 #
 # Por agente (`for.<agente>`):
 #   url           endereço do proxy entregue ao agente. Aceita {port}.
@@ -33,6 +36,10 @@ cmd     = "headroom"
 args    = ["proxy", "--host", "127.0.0.1", "--port", "{port}"]
 env     = { HEADROOM_BEACON = "off", DO_NOT_TRACK = "1" }
 install = "uv tool install --python 3.13 \"headroom-ai[proxy]\""
+# --log-file grava uma linha por pedido com contagens de tokens, sem o texto das mensagens.
+stats_args   = ["--log-file", "{stats}"]
+stats_before = "input_tokens_original"
+stats_after  = "input_tokens_optimized"
 
 [compressors.headroom.for.claude]
 url         = "http://127.0.0.1:{port}"

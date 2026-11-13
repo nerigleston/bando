@@ -32,6 +32,44 @@ struct ContextRing: View {
     func color(_ f: Double) -> Color { f < 0.5 ? .green : (f < 0.8 ? .orange : .red) }
 }
 
+// MARK: - Compressão (cabeçalho da sessão)
+
+/// Selo da compressão: nome do compressor e quanto deixou de ir ao modelo.
+/// Só aparece em sessão criada com compressor.
+struct CompressionBadge: View {
+    @Environment(AppModel.self) private var model
+    let session: Session
+
+    var body: some View {
+        let p = model.palette
+        if let id = session.compressor {
+            let name = model.config?.compressors[id]?.name ?? id
+            let s = model.compression[session.id]
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.down.right.and.arrow.up.left").font(.system(size: 9, weight: .semibold))
+                Text(label(name, s)).font(.system(size: 11)).monospacedDigit().lineLimit(1)
+            }
+            .fixedSize()
+            .foregroundStyle(p.secondary)
+            .padding(.horizontal, 7).frame(height: 20)
+            .background(Capsule().strokeBorder(p.border))
+            .help(help(name, s))
+        }
+    }
+
+    func label(_ name: String, _ s: CompressorSavings?) -> String {
+        guard let s, s.saved > 0 else { return name }
+        return "\(name) −\(compact(s.saved)) (\(String(format: "%.0f", s.fraction * 100))%)"
+    }
+
+    func help(_ name: String, _ s: CompressorSavings?) -> String {
+        guard let s, s.requests > 0 else {
+            return "Compressão ligada: \(name). A economia aparece depois do primeiro pedido ao modelo."
+        }
+        return "Compressão ligada: \(name). \(s.requests) pedido(s): \(compact(s.before)) → \(compact(s.after)) tokens de entrada (\(String(format: "%.1f", s.fraction * 100))% a menos, soma de todos os pedidos)."
+    }
+}
+
 struct ContextPopover: View {
     @Environment(\.palette) private var p
     let summary: ContextSummary
