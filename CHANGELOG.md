@@ -1,6 +1,6 @@
 # Mudanças
 
-## Próxima versão
+## 0.1.37
 
 - Sessão com compressão mostra no cabeçalho um selo com o compressor e quanto deixou de ir ao modelo (ex.: "Headroom −56.1k (13%)"). Passando o mouse, aparecem os pedidos e os tokens de entrada antes e depois. O proxy grava uma linha por pedido em `run/<sessão>.compressor.jsonl`, só com contagens de tokens, e o app lê apenas as linhas novas quando a sessão muda de estado. Sessões criadas na 0.1.36 mostram o selo sem números até serem retomadas.
 
