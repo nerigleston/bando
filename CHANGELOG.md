@@ -1,6 +1,6 @@
 # Mudanças
 
-## Próxima versão
+## 0.1.38
 
 - Sessão com provider e sem modelo escolhido usa o modelo padrão do provider (o primeiro da lista). Antes, a janela Nova sessão (⌘N) e o `bando new` sem `-m` deixavam o modelo vazio, e o agente pedia o modelo dele: com o Ollama, o Claude Code pedia Opus e recebia 404.
 - Ollama local no Claude Code: o preset passa `API_TIMEOUT_MS` de 50 minutos. Um modelo local lê o primeiro pedido do Claude Code (uns 27 mil tokens) em vários minutos, e com o limite padrão o Claude Code desistia em 5 minutos e recomeçava. O Ollama também precisa de `OLLAMA_CONTEXT_LENGTH` maior que o padrão de 4096.
