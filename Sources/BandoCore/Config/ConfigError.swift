@@ -9,6 +9,9 @@ public enum ConfigError: Error, Equatable, LocalizedError {
     case unknownAgent(String)
     case unknownProvider(String)
     case providerNotForAgent(provider: String, agent: String)
+    case unknownCompressor(String)
+    case compressorNotForAgent(compressor: String, agent: String)
+    case compressorBlocked(compressor: String, variable: String)
 
     public var errorDescription: String? {
         switch self {
@@ -28,6 +31,12 @@ public enum ConfigError: Error, Equatable, LocalizedError {
             "Provider desconhecido: \(id)"
         case .providerNotForAgent(let p, let a):
             "O provider \(p) não está liberado para o agente \(a) (campo agents)"
+        case .unknownCompressor(let id):
+            "Compressor desconhecido: \(id)"
+        case .compressorNotForAgent(let c, let a):
+            "O compressor \(c) não tem configuração para o agente \(a)"
+        case .compressorBlocked(let c, let v):
+            "O compressor \(c) não funciona com este provider (variável \(v))"
         }
     }
 }

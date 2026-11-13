@@ -58,9 +58,17 @@ public final class Supervisor: @unchecked Sendable {
         let plan: LaunchPlan
         let agent: AgentDefinition
         let env: [String: String]
+        var proxyPid: pid_t = 0
         do {
             let built = try service.launchPlan(for: session, resume: resume, forkFrom: forkFrom, promptOverride: promptOverride)
-            plan = built.0
+            if built.0.proxy != nil {
+                // Compressor: proxy local numa porta livre, só enquanto o agente roda.
+                let started = try startProxy(built.0, session: session)
+                plan = started.plan
+                proxyPid = started.pid
+            } else {
+                plan = built.0
+            }
             agent = built.1
             if let assigned = built.assignedId { try service.setNativeId(session.id, nativeId: assigned) }
             // Ler o Keychain pode abrir um aviso do macOS e travar até a resposta
@@ -74,6 +82,7 @@ public final class Supervisor: @unchecked Sendable {
             }
             env = try plan.resolvedEnvironment(store: KeychainStore(), environment: ProcessInfo.processInfo.environment)
         } catch {
+            stopProxy(proxyPid)
             fail(error.localizedDescription, sessionId: session.id, cwd: session.worktreePath)
         }
 
@@ -97,6 +106,7 @@ public final class Supervisor: @unchecked Sendable {
         }
 
         guard let exe = ExecutableLocator.shared.locate(plan.argv[0]) else {
+            stopProxy(proxyPid)
             let hint = (try? service.config.agent(session.agent))?.install.map { "\nInstalar: \($0)" } ?? ""
             fail("\(plan.argv[0]) não encontrado no PATH.\(hint)", sessionId: session.id, cwd: session.worktreePath)
         }
@@ -121,6 +131,7 @@ public final class Supervisor: @unchecked Sendable {
         childEnv.merge(env) { _, new in new }
         let status = spawnAndWait(exe, argv: plan.argv, env: childEnv, cwd: session.worktreePath)
 
+        stopProxy(proxyPid)
         watcher?.stop()
         let code = Int(status)
         if code == 0 {
@@ -169,6 +180,126 @@ public final class Supervisor: @unchecked Sendable {
         return low == 0 ? (status >> 8) & 0xff : 128 + low
     }
 
+    // MARK: - Proxy do compressor
+
+    /// Inicia o proxy do compressor e devolve o plano com a porta trocada.
+    ///
+    /// O proxy roda em grupo de processos próprio (Ctrl-C no terminal não o
+    /// derruba) e com a saída num arquivo de log. Ele morre quando o agente
+    /// sai, ou quando o supervisor recebe SIGHUP/SIGTERM (tmux encerrado).
+    func startProxy(_ template: LaunchPlan, session: Session) throws -> (plan: LaunchPlan, pid: pid_t) {
+        guard let port = Self.freePort() else { throw BandoError.invalid("não achei uma porta livre para o compressor") }
+        let plan = template.binding(port: port)
+        guard let proxy = plan.proxy else { return (plan, 0) }
+        guard let exe = ExecutableLocator.shared.locate(proxy.argv[0]) else {
+            let hint = proxy.install.map { "\nInstalar: \($0)" } ?? ""
+            throw BandoError.invalid("\(proxy.argv[0]) (compressor \(proxy.name)) não encontrado no PATH.\(hint)")
+        }
+        let dir = service.paths.stateDir.appendingPathComponent("run")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let log = dir.appendingPathComponent("\(session.id).proxy.log").path
+
+        var actions = posix_spawn_file_actions_t(nil as OpaquePointer?)
+        posix_spawn_file_actions_init(&actions)
+        posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0)
+        posix_spawn_file_actions_addopen(&actions, 1, log, O_WRONLY | O_CREAT | O_TRUNC, 0o600)
+        posix_spawn_file_actions_adddup2(&actions, 1, 2)
+        var attr = posix_spawnattr_t(nil as OpaquePointer?)
+        posix_spawnattr_init(&attr)
+        var defaults = sigset_t()
+        sigemptyset(&defaults)
+        for sig in [SIGINT, SIGQUIT, SIGTSTP, SIGHUP, SIGPIPE] { sigaddset(&defaults, sig) }
+        posix_spawnattr_setsigdefault(&attr, &defaults)
+        posix_spawnattr_setpgroup(&attr, 0)
+        posix_spawnattr_setflags(&attr, Int16(POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETPGROUP))
+
+        var env = ProcessInfo.processInfo.environment
+        env["PATH"] = ExecutableLocator.shared.pathValue
+        env.merge(proxy.env) { _, new in new }
+        let cArgs = proxy.argv.map { strdup($0) } + [nil]
+        let cEnv = env.map { strdup("\($0.key)=\($0.value)") } + [nil]
+        defer {
+            cArgs.forEach { free($0) }
+            cEnv.forEach { free($0) }
+            posix_spawnattr_destroy(&attr)
+            posix_spawn_file_actions_destroy(&actions)
+        }
+        var pid: pid_t = 0
+        let rc = posix_spawn(&pid, exe, &actions, &attr, cArgs, cEnv)
+        guard rc == 0 else { throw BandoError.invalid("falha ao iniciar \(exe): \(String(cString: strerror(rc)))") }
+
+        // Se o tmux for encerrado, o supervisor morre por sinal: leva o proxy junto.
+        supervisorProxyPid = pid
+        signal(SIGHUP, supervisorProxyCleanup)
+        signal(SIGTERM, supervisorProxyCleanup)
+
+        banner("compressão: iniciando \(proxy.name) na porta \(port)")
+        // Espera única na subida: o proxy leva alguns segundos para abrir a porta.
+        let deadline = Date().addingTimeInterval(30)
+        while Date() < deadline {
+            var status: Int32 = 0
+            if waitpid(pid, &status, WNOHANG) == pid {
+                supervisorProxyPid = 0
+                throw BandoError.invalid("o compressor \(proxy.name) saiu ao iniciar. Log: \(log)")
+            }
+            if Self.isListening(port) { return (plan, pid) }
+            usleep(200_000)
+        }
+        stopProxy(pid)
+        throw BandoError.invalid("o compressor \(proxy.name) não abriu a porta \(port) em 30 s. Log: \(log)")
+    }
+
+    func stopProxy(_ pid: pid_t) {
+        guard pid > 0 else { return }
+        // O proxy tem grupo próprio: o sinal vai para ele e para os filhos dele.
+        kill(-pid, SIGTERM)
+        var status: Int32 = 0
+        for _ in 0..<30 {
+            if waitpid(pid, &status, WNOHANG) != 0 { supervisorProxyPid = 0; return }
+            usleep(100_000)
+        }
+        kill(-pid, SIGKILL)
+        _ = waitpid(pid, &status, 0)
+        supervisorProxyPid = 0
+    }
+
+    /// Porta TCP livre em 127.0.0.1 (o sistema escolhe).
+    static func freePort() -> Int? {
+        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        guard fd >= 0 else { return nil }
+        defer { close(fd) }
+        var addr = loopback(port: 0)
+        let bound = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+        }
+        guard bound == 0 else { return nil }
+        var len = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let got = withUnsafeMutablePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(fd, $0, &len) }
+        }
+        guard got == 0 else { return nil }
+        return Int(UInt16(bigEndian: addr.sin_port))
+    }
+
+    static func isListening(_ port: Int) -> Bool {
+        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        guard fd >= 0 else { return false }
+        defer { close(fd) }
+        var addr = loopback(port: port)
+        return withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+        } == 0
+    }
+
+    static func loopback(port: Int) -> sockaddr_in {
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = UInt16(port).bigEndian
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+        return addr
+    }
+
     func runShell(_ script: String, cwd: String) -> Int32 {
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
         var env = ProcessInfo.processInfo.environment
@@ -196,6 +327,27 @@ public final class Supervisor: @unchecked Sendable {
     func banner(_ text: String) {
         FileHandle.standardError.write(Data("\u{1B}[2m[bando] \(text)\u{1B}[0m\n".utf8))
     }
+}
+
+/// PID do proxy do compressor, para o tratador de sinal do supervisor.
+nonisolated(unsafe) var supervisorProxyPid: pid_t = 0
+
+/// SIGHUP/SIGTERM no supervisor: encerra o proxy e sai. Só chama funções
+/// seguras em tratador de sinal.
+let supervisorProxyCleanup: @convention(c) (Int32) -> Void = { _ in
+    let pid = supervisorProxyPid
+    if pid > 0 {
+        // O proxy tem grupo próprio: o sinal vai para ele e para os filhos dele.
+        kill(-pid, SIGTERM)
+        var status: Int32 = 0
+        var gone = false
+        for _ in 0..<30 where !gone {
+            if waitpid(pid, &status, WNOHANG) != 0 { gone = true } else { _ = poll(nil, 0, 100) }
+        }
+        // Medido com o Headroom 0.44: depois que o agente cai, ele pode não sair no SIGTERM.
+        if !gone { kill(-pid, SIGKILL) }
+    }
+    _exit(129)
 }
 
 /// Acompanha a saída do painel para agentes sem hooks.

@@ -125,6 +125,10 @@ public final class BandoStore: Sendable {
         m.registerMigration("v5-custom-name") { db in
             try db.alter(table: "session") { t in t.add(column: "customName", .boolean).notNull().defaults(to: false) }
         }
+        // Compressor opcional por sessão (proxy local iniciado pelo `bando run`).
+        m.registerMigration("v6-compressor") { db in
+            try db.alter(table: "session") { t in t.add(column: "compressor", .text) }
+        }
         return m
     }
 

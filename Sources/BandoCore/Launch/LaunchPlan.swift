@@ -26,12 +26,14 @@ public struct LaunchRequest: Sendable {
     public var hookArgs: [String]
     /// Argumentos e ambiente dos servidores MCP do Bando.
     public var mcp: McpLaunch
+    /// Compressor escolhido para a sessão (opcional).
+    public var compressor: CompressorDefinition?
 
     public init(
         agent: AgentDefinition, provider: ProviderDefinition? = nil, model: String? = nil,
         prompt: String? = nil, mode: Mode = .fresh, sessionId: String? = nil,
         worktree: String? = nil, branch: String? = nil, newNativeId: String? = nil, hookArgs: [String] = [],
-        mcp: McpLaunch = McpLaunch()
+        mcp: McpLaunch = McpLaunch(), compressor: CompressorDefinition? = nil
     ) {
         self.agent = agent
         self.provider = provider
@@ -44,6 +46,7 @@ public struct LaunchRequest: Sendable {
         self.newNativeId = newNativeId
         self.hookArgs = hookArgs
         self.mcp = mcp
+        self.compressor = compressor
     }
 }
 
@@ -57,6 +60,8 @@ public struct LaunchPlan: Sendable, Equatable {
     public var pendingKeys: String?
     /// Arquivos a gravar antes de iniciar (configuração sem segredos).
     public var files: [String: String] = [:]
+    /// Proxy do compressor a iniciar antes do agente (com `{port}` por trocar).
+    public var proxy: ProxyLaunch?
 
     public static func build(_ req: LaunchRequest, environment: [String: String] = ProcessInfo.processInfo.environment) throws -> LaunchPlan {
         let agent = req.agent
@@ -82,6 +87,7 @@ public struct LaunchPlan: Sendable, Equatable {
 
         var argv = expandEnvironment(agent.cmd, environment: environment)
             .split(separator: " ").map(String.init)
+        let cmdTokens = argv.count
         argv += try expandGroup(agent.args, values)
         argv += req.hookArgs
         argv += req.mcp.args
@@ -105,7 +111,11 @@ public struct LaunchPlan: Sendable, Equatable {
         if let id = req.sessionId { env["BANDO_SESSION_ID"] = .literal(id) }
 
         let keys = (!wantsArgsPrompt && !(req.prompt ?? "").isEmpty) ? req.prompt : nil
-        return LaunchPlan(argv: argv, env: env, pendingKeys: keys, files: req.mcp.files)
+        var plan = LaunchPlan(argv: argv, env: env, pendingKeys: keys, files: req.mcp.files)
+        if let compressor = req.compressor {
+            try plan.route(through: compressor, agent: agent, cmdTokens: cmdTokens)
+        }
+        return plan
     }
 
     /// Expande placeholders `{x}` num grupo de argumentos. Se algum placeholder

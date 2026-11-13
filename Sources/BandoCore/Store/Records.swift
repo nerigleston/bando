@@ -134,6 +134,8 @@ public struct Session: Codable, Sendable, Identifiable, Hashable, FetchableRecor
     public var hidden: Bool = false
     /// Nome dado pelo usuário (renomear): títulos automáticos não o substituem.
     public var customName: Bool = false
+    /// Compressor escolhido para a sessão (ID do catálogo); nil = sem compressão.
+    public var compressor: String?
 
     public init(id: String = UUID().uuidString.lowercased(), projectId: String, name: String, prompt: String?,
                 agent: String, provider: String?, model: String?, worktreePath: String, branch: String?,

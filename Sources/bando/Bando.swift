@@ -11,7 +11,7 @@ struct Bando: AsyncParsableCommand {
         subcommands: [
             New.self, List.self, Attach.self, Msg.self, Stop.self, Resume.self, Swap.self, Remove.self, Seen.self, Log.self,
             Projects.self, Import.self, Usage.self, ReportCommand.self,
-            Agents.self, Providers.self, Themes.self, Mcp.self, Plan.self, Secret.self, Config.self, Doctor.self,
+            Agents.self, Providers.self, Compressors.self, Themes.self, Mcp.self, Plan.self, Secret.self, Config.self, Doctor.self,
             Run.self, Hook.self,
         ]
     )
@@ -109,6 +109,25 @@ struct Agents: ParsableCommand {
 }
 
 // MARK: - providers
+
+struct Compressors: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        abstract: "Lista os compressores (opcionais) e se estão instalados.",
+        discussion: "Um compressor é um proxy local que encolhe o que o agente manda ao modelo. Só entra na sessão criada com --compressor."
+    )
+
+    func run() throws {
+        let config = try loadConfig()
+        var rows = [["ID", "NOME", "AGENTES", "INSTALADO"]]
+        for c in config.sortedCompressors {
+            let exe = c.cmd.split(separator: " ").first.map(String.init) ?? c.cmd
+            let installed = ExecutableLocator.shared.locate(exe) != nil
+            rows.append([c.id, c.name, c.supportedAgents.joined(separator: ","),
+                         installed ? "sim" : "não: \(c.install ?? "veja a documentação")"])
+        }
+        printTable(rows)
+    }
+}
 
 struct Providers: ParsableCommand {
     static let configuration = CommandConfiguration(abstract: "Lista os providers e se as chaves estão cadastradas.")
@@ -223,6 +242,9 @@ struct Plan: ParsableCommand {
     @Flag(name: .customLong("continue"), help: "Continuar a última conversa.")
     var continueLast = false
 
+    @Option(name: .long, help: "ID do compressor (veja bando compressors).")
+    var compressor: String?
+
     @Argument(help: "Tarefa inicial.")
     var prompt: String?
 
@@ -230,9 +252,11 @@ struct Plan: ParsableCommand {
         let config = try loadConfig()
         let agentDef = try config.agent(agent)
         let providerDef = try provider.map { try config.provider($0) }
+        let compressorDef = try compressor.map { try config.compressor($0) }
         let mode: LaunchRequest.Mode = resume.map { .resume(nativeId: $0) } ?? (continueLast ? .continueLast : .fresh)
         let plan = try LaunchPlan.build(LaunchRequest(
-            agent: agentDef, provider: providerDef, model: model, prompt: prompt, mode: mode
+            agent: agentDef, provider: providerDef, model: model, prompt: prompt, mode: mode,
+            compressor: compressorDef
         ))
 
         print("comando:")
@@ -246,6 +270,14 @@ struct Plan: ParsableCommand {
         if let keys = plan.pendingKeys {
             print("digitado no terminal depois de abrir:")
             print("  \(keys)")
+        }
+        if let proxy = plan.proxy {
+            print("compressor (\(proxy.name)), iniciado antes do agente numa porta livre:")
+            print("  " + proxy.argv.map(shellQuote).joined(separator: " "))
+            for (k, v) in proxy.env.sorted(by: { $0.key < $1.key }) { print("  \(k) = \(v)") }
+            if ExecutableLocator.shared.locate(proxy.argv[0]) == nil {
+                warn("\(proxy.argv[0]) não foi encontrado no PATH. Instalar: \(proxy.install ?? "veja a documentação do compressor")")
+            }
         }
         if ExecutableLocator.shared.locate(agentDef.executableName()) == nil {
             warn("\(agentDef.executableName()) não foi encontrado no PATH. Instalar: \(agentDef.install ?? "veja a documentação do agente")")

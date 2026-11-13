@@ -1124,6 +1124,8 @@ public enum Presets {
     # Fonte: https://docs.venice.ai/guides/integrations/codex-cli ; https://docs.venice.ai/guides/integrations/claude-code ; https://models.dev/api.json ; https://goose-docs.ai/docs/getting-started/providers  | verificado: parcial
     # Codex: a doc usa experimental_bearer_token no config.toml; aqui env_key, para a chave sair do Keychain.
     #        Responses API em alpha (POST /api/v1/responses responde 402 sem crédito, a rota existe).
+    #        service_tier="auto": a Venice só aceita auto e default; sem isso o "priority" (modo Fast) do
+    #        ~/.codex/config.toml chega lá e o pedido é recusado (testado em 13/11/2026, Codex 0.167).
     # Sem endpoint Anthropic (POST /api/v1/messages = 404, 11/11/2026): a doc manda usar claude-code-router => sem Claude Code.
     # Modelo padrão (primeiro da lista) escolhido pelo usuário; IDs conferidos na lista de modelos da Venice em 11/11/2026.
     # Crush e Aider não listam a Venice. Goose lista VENICE_API_KEY; o ID "venice" de GOOSE_PROVIDER não aparece na página.
@@ -1133,7 +1135,7 @@ public enum Presets {
 
     [providers.venice.for.codex]
     env  = { VENICE_API_KEY = "keychain:bando/venice" }
-    args = ["-c", "model_provider=\"venice\"", "-c", "model_providers.venice.name=\"Venice\"", "-c", "model_providers.venice.base_url=\"https://api.venice.ai/api/v1\"", "-c", "model_providers.venice.env_key=\"VENICE_API_KEY\"", "-c", "model_providers.venice.wire_api=\"responses\""]
+    args = ["-c", "service_tier=\"auto\"", "-c", "model_provider=\"venice\"", "-c", "model_providers.venice.name=\"Venice\"", "-c", "model_providers.venice.base_url=\"https://api.venice.ai/api/v1\"", "-c", "model_providers.venice.env_key=\"VENICE_API_KEY\"", "-c", "model_providers.venice.wire_api=\"responses\""]
 
     [providers.venice.for.opencode]
     env = { VENICE_API_KEY = "keychain:bando/venice" }
@@ -2016,5 +2018,56 @@ public enum Presets {
     cache_write_1h = 2.0
     cache_read = 0.1
     context = 200000
+    """###
+
+    public static let compressors = ###"""
+    # Compressores: proxies locais que encolhem o que o agente manda ao modelo.
+    # Opcionais. A sessão só usa um quando o usuário pede (bando new --compressor, ou a chave no app).
+    #
+    # O `bando run` inicia o proxy numa porta livre antes do agente e o encerra junto com ele.
+    # Nada fica rodando depois que a sessão para.
+    #
+    # Campos:
+    #   cmd, args   comando do proxy. {port} vira a porta escolhida na hora.
+    #   env         ambiente extra do proxy (sem segredos: a chave do provider vai no pedido do agente).
+    #   install     comando de instalação, mostrado quando o binário não existe.
+    #
+    # Por agente (`for.<agente>`):
+    #   url           endereço do proxy entregue ao agente. Aceita {port}.
+    #   url_env       variável de ambiente do agente que recebe `url`. O valor que o provider tinha posto
+    #                 nela vira o destino do proxy.
+    #   url_arg       regex da chave de um argumento `chave="valor"` do provider que guarda a URL
+    #                 (ex.: `-c model_providers.x.base_url="..."`). O valor vira o destino do proxy.
+    #   default_args  argumentos do agente quando o provider não trouxe URL nenhuma. Aceitam {url}.
+    #   upstream      argumentos do proxy quando há destino. Aceitam {upstream}.
+    #   upstream_strip sufixo tirado do destino antes de passar ao proxy (ele mesmo acrescenta).
+    #   blocked_env   variáveis do provider que tornam a sessão incompatível (rotas que não passam pelo proxy).
+
+    # Fonte: https://github.com/headroomlabs-ai/headroom (docs/proxy.mdx, wiki/cli.md, cli/wrap.py) | verificado: parcial
+    # Testado em 13/11/2026 com Headroom 0.44.0 e Codex 0.167 + Venice: 3 pedidos em /v1/responses com status 200;
+    # numa rodada com cinco trechos de log, 14,1% menos tokens de entrada (27% no último pedido).
+    # O ganho vem de saídas de comandos (logs, build, testes). A base fixa do agente não muda.
+    # HEADROOM_BEACON=off e DO_NOT_TRACK=1 desligam o envio anônimo de uso, que vem ligado.
+    # Codex sem provider: openai_base_url, como o `headroom wrap codex` faz.
+    # Claude Code com Bedrock, Vertex ou Foundry não passa por ANTHROPIC_BASE_URL: bloqueado.
+    [compressors.headroom]
+    name    = "Headroom"
+    cmd     = "headroom"
+    args    = ["proxy", "--host", "127.0.0.1", "--port", "{port}"]
+    env     = { HEADROOM_BEACON = "off", DO_NOT_TRACK = "1" }
+    install = "uv tool install --python 3.13 \"headroom-ai[proxy]\""
+
+    [compressors.headroom.for.claude]
+    url         = "http://127.0.0.1:{port}"
+    url_env     = "ANTHROPIC_BASE_URL"
+    upstream    = ["--anthropic-api-url", "{upstream}"]
+    blocked_env = ["CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"]
+
+    [compressors.headroom.for.codex]
+    url            = "http://127.0.0.1:{port}/v1"
+    url_arg        = 'model_providers\.[A-Za-z0-9_-]+\.base_url'
+    default_args   = ["-c", "openai_base_url=\"{url}\""]
+    upstream       = ["--openai-api-url", "{upstream}"]
+    upstream_strip = "/v1"
     """###
 }

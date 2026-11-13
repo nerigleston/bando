@@ -79,6 +79,7 @@ Quem já usa o Xirp pode trazer projetos, sessões, custos e PRs com `bando impo
 
 **Integrações**
 - **MCP centralizado:** cadastre os servidores uma vez e o Bando entrega a cada sessão, sem mexer na configuração dos agentes.
+- **Compressão opcional:** ligue o [Headroom](https://github.com/headroomlabs-ai/headroom) numa sessão do Claude Code ou do Codex e as saídas de comandos (logs, build, testes) chegam menores ao modelo. O proxy é local, sobe com a sessão e para com ela. Vem desligada: `bando new --compressor headroom` ou o campo Compressão na nova sessão.
 - **CLI completo:** tudo o que o app faz, pelo terminal.
 
 ## Agentes
