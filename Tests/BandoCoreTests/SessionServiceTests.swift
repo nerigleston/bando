@@ -41,6 +41,21 @@ struct SessionServiceTests {
         #expect(s.branch == nil)
     }
 
+    @Test("sem modelo escolhido, vale o primeiro modelo do provider")
+    func providerDefaultModel() throws {
+        let dir = try folder("modelo")
+        let project = try service.ensureProject(at: dir.path)
+        let first = try #require(service.config.provider("ollama").models.first)
+        let semModelo = try service.create(.init(project: project, prompt: nil, agent: "claude", provider: "ollama", startNow: false))
+        #expect(semModelo.model == first)
+        let vazio = try service.create(.init(project: project, prompt: nil, agent: "claude", provider: "ollama", model: "", startNow: false))
+        #expect(vazio.model == first)
+        let escolhido = try service.create(.init(project: project, prompt: nil, agent: "claude", provider: "ollama", model: "outro", startNow: false))
+        #expect(escolhido.model == "outro")
+        let semProvider = try service.create(.init(project: project, prompt: nil, agent: "claude", startNow: false))
+        #expect(semProvider.model == nil)
+    }
+
     @Test("repositório git: a sessão ganha worktree e branch próprios")
     func gitRepoGetsWorktree() throws {
         let repo = try folder("repo")

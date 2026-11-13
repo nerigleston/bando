@@ -1,5 +1,10 @@
 # Mudanças
 
+## Próxima versão
+
+- Sessão com provider e sem modelo escolhido usa o modelo padrão do provider (o primeiro da lista). Antes, a janela Nova sessão (⌘N) e o `bando new` sem `-m` deixavam o modelo vazio, e o agente pedia o modelo dele: com o Ollama, o Claude Code pedia Opus e recebia 404.
+- Ollama local no Claude Code: o preset passa `API_TIMEOUT_MS` de 50 minutos. Um modelo local lê o primeiro pedido do Claude Code (uns 27 mil tokens) em vários minutos, e com o limite padrão o Claude Code desistia em 5 minutos e recomeçava. O Ollama também precisa de `OLLAMA_CONTEXT_LENGTH` maior que o padrão de 4096.
+
 ## 0.1.37
 
 - Sessão com compressão mostra no cabeçalho um selo com o compressor e quanto deixou de ir ao modelo (ex.: "Headroom −56.1k (13%)"). Passando o mouse, aparecem os pedidos e os tokens de entrada antes e depois. O proxy grava uma linha por pedido em `run/<sessão>.compressor.jsonl`, só com contagens de tokens, e o app lê apenas as linhas novas quando a sessão muda de estado. Sessões criadas na 0.1.36 mostram o selo sem números até serem retomadas.

@@ -86,12 +86,14 @@ public final class SessionService: @unchecked Sendable {
     /// depender de outra que ainda não terminou.
     public func create(_ req: NewSession) throws -> Session {
         let agent = try config.agent(req.agent)
-        if let p = req.provider {
-            let provider = try config.provider(p)
-            guard provider.supports(agent: agent.id) else {
-                throw ConfigError.providerNotForAgent(provider: provider.id, agent: agent.id)
-            }
+        let provider = try req.provider.map { try config.provider($0) }
+        if let provider, !provider.supports(agent: agent.id) {
+            throw ConfigError.providerNotForAgent(provider: provider.id, agent: agent.id)
         }
+        // Sem modelo escolhido, vale o padrão do provider (o primeiro da lista).
+        // Sem isso o agente usa o modelo dele, que o provider pode não ter
+        // (ex.: Claude Code pedindo Opus ao Ollama).
+        let model = req.model.flatMap { $0.isEmpty ? nil : $0 } ?? provider?.models.first
         if let c = req.compressor {
             guard try config.compressor(c).supports(agent: agent.id) else {
                 throw ConfigError.compressorNotForAgent(compressor: c, agent: agent.id)
@@ -125,7 +127,7 @@ public final class SessionService: @unchecked Sendable {
         let waiting = parent.map { !$0.status.releasesDependents && $0.status != .error } ?? false
         var session = Session(
             id: id, projectId: req.project.id, name: baseName, prompt: req.prompt,
-            agent: agent.id, provider: req.provider, model: req.model,
+            agent: agent.id, provider: req.provider, model: model,
             worktreePath: worktree, branch: branch, baseBranch: base, usesWorktree: useWorktree,
             tmuxName: "bando_\(String(id.prefix(8)))",
             status: waiting ? .queued : .starting, dependsOn: parent?.id
