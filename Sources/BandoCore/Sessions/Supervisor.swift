@@ -79,7 +79,11 @@ public final class Supervisor: @unchecked Sendable {
         // Só na primeira subida e com nome provisório.
         if !resume && !session.customName {
             let service = self.service, id = session.id, titleEnv = env
+            // Agente que escreve o próprio título no terminal: espera uma vez,
+            // dá tempo de ele nomear a conversa e só gera se não nomeou.
+            let wait: TimeInterval = agent.terminalTitle == nil ? 0 : 30
             Thread.detachNewThread {
+                if wait > 0 { Thread.sleep(forTimeInterval: wait) }
                 if (try? service.refreshTitle(id, env: titleEnv)) ?? nil != nil { ChangeNotifier.post() }
             }
         }
@@ -361,5 +365,10 @@ final class OutputWatcher: @unchecked Sendable {
     func set(_ status: SessionStatus, detail: String?) {
         state = status
         try? supervisor.service.transition(supervisor.sessionId, to: status, kind: "watch", detail: detail)
+        // Fim de turno sem hooks: lê o título que o agente pôs no terminal (barato).
+        if status == .idle || status == .review,
+           (try? supervisor.service.refreshTitle(supervisor.sessionId, allowGenerate: false)) ?? nil != nil {
+            ChangeNotifier.post()
+        }
     }
 }

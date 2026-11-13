@@ -59,6 +59,9 @@ public struct AgentDefinition: Sendable, Equatable {
     public var title: [String] = []
     /// Modelo do título quando o provider é a conta do próprio agente.
     public var titleModel: String?
+    /// Regex sobre o título que o agente põe no terminal (OSC 0/2); o grupo 1
+    /// vira o nome da sessão, sem chamar modelo. Ex.: Claude "✳ Corrigir login".
+    public var terminalTitle: String?
 }
 
 /// Forma "parcial" lida do TOML. Tudo opcional para permitir que o arquivo do
@@ -88,11 +91,13 @@ struct AgentEntry: Codable, Sendable {
     var enabled: Bool?
     var title: [String]?
     var titleModel: String?
+    var terminalTitle: String?
 
     enum CodingKeys: String, CodingKey {
         case name, cmd, prompt, fresh, fork, resume, `continue`, model, args, env, status
         case hooks, busy, waiting, version, install, update, enabled, mcp, title
         case titleModel = "title_model"
+        case terminalTitle = "terminal_title"
         case idleAfter = "idle_after"
         case promptVia = "prompt_via"
         case assignId = "assign_id"
@@ -124,7 +129,8 @@ struct AgentEntry: Codable, Sendable {
             update: o.update ?? update,
             enabled: o.enabled ?? enabled,
             title: o.title ?? title,
-            titleModel: o.titleModel ?? titleModel
+            titleModel: o.titleModel ?? titleModel,
+            terminalTitle: o.terminalTitle ?? terminalTitle
         )
     }
 
@@ -134,7 +140,7 @@ struct AgentEntry: Codable, Sendable {
         }
         // Sem regex, o modo output se comporta como silence.
         let status = status ?? .silence
-        for (field, pattern) in [("busy", busy), ("waiting", waiting)] {
+        for (field, pattern) in [("busy", busy), ("waiting", waiting), ("terminal_title", terminalTitle)] {
             if let pattern, (try? Regex(pattern)) == nil {
                 throw ConfigError.invalidRegex(section: "agents.\(id)", field: field, pattern: pattern)
             }
@@ -166,7 +172,8 @@ struct AgentEntry: Codable, Sendable {
             install: install,
             update: update,
             title: title ?? [],
-            titleModel: titleModel
+            titleModel: titleModel,
+            terminalTitle: terminalTitle
         )
     }
 }

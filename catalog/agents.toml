@@ -40,6 +40,8 @@ continue = ["--continue"]
 model    = ["--model", "{model}"]
 status   = "hooks"
 hooks    = "claude"
+# Título no terminal: "✳ <resumo>" parado, um ponto braille girando no lugar do ✳ enquanto trabalha.
+terminal_title = '^[✳⠀-⣿] (.+)$'
 install  = "curl -fsSL https://claude.ai/install.sh | bash"
 update   = "claude update"
 
@@ -62,6 +64,10 @@ continue = ["resume", "--last"]
 model    = ["--model", "{model}"]
 status   = "hooks"
 hooks    = "codex"
+# Título no terminal (padrão do Codex: atividade | nome da conversa | pasta). Sem nome
+# ainda, só "pasta" ou "spinner | pasta": a regex exige as duas partes.
+terminal_title = '^(?:[⠀-⣿] \| )?(.+) \| [^|]+$'
+
 # Observado no Codex 0.163 (09/11/2026): pergunta de confiança e menus de escolha.
 waiting  = 'Trust this folder\?|enter continue · esc|enter confirm · esc|Update available'
 install  = "curl -fsSL https://chatgpt.com/codex/install.sh | sh"

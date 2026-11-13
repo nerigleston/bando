@@ -214,4 +214,24 @@ struct SessionServiceTests {
         }
         #expect(!fm.fileExists(atPath: wt.appendingPathComponent("node_modules").path))
     }
+
+    @Test("branch automático ganha o nome do título; enviado ou renomeado à mão não muda")
+    func branchFollowsTitle() throws {
+        let repo = try folder("repo-branch")
+        try git(["init", "-q", "-b", "main"], in: repo)
+        try "x\n".write(to: repo.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
+        try git(["add", "."], in: repo)
+        try git(["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init"], in: repo)
+        let project = try service.ensureProject(at: repo.path)
+        let s = try service.create(.init(project: project, prompt: "veja o veniti pfvr, quero que seja irreconhecível", agent: "shell", startNow: false))
+        let id4 = String(s.id.prefix(4))
+        #expect(s.branch == "bando/veniti-seja-irreconhecivel-\(id4)")
+        service.renameAutoBranch(s.id, title: "Novo robô Veniti")
+        let renamed = try #require(try service.store.session(s.id))
+        #expect(renamed.branch == "bando/novo-robo-veniti-\(id4)")
+        #expect(try Git().currentBranch(s.worktreePath) == "bando/novo-robo-veniti-\(id4)")
+        // Segunda vez não mexe: o nome já não é o automático.
+        service.renameAutoBranch(s.id, title: "Outro título")
+        #expect(try service.store.session(s.id)?.branch == "bando/novo-robo-veniti-\(id4)")
+    }
 }

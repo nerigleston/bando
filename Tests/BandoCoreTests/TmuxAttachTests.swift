@@ -5,11 +5,13 @@ import Testing
 struct TmuxAttachTests {
     static let hasTmux = ExecutableLocator.shared.locate("tmux") != nil
 
-    @Test("no servidor do Bando liga os links OSC 8 antes de anexar", .enabled(if: TmuxAttachTests.hasTmux))
+    @Test("no servidor do Bando liga links OSC 8 e cópia OSC 52 antes de anexar", .enabled(if: TmuxAttachTests.hasTmux))
     func bandoServerEnablesHyperlinks() throws {
         let argv = try Tmux().attachCommand("bando_x")
-        #expect(Array(argv.dropFirst()) == ["-L", "bando", "set-option", "-s", "terminal-features[90]", "xterm*:hyperlinks",
-                                             ";", "attach-session", "-t", "=bando_x"])
+        #expect(Array(argv.dropFirst()) == ["-L", "bando",
+                                             "set-option", "-s", "terminal-features[90]", "xterm*:hyperlinks", ";",
+                                             "set-option", "-s", "set-clipboard", "on", ";",
+                                             "attach-session", "-t", "=bando_x"])
     }
 
     @Test("no servidor padrão do usuário só anexa", .enabled(if: TmuxAttachTests.hasTmux))

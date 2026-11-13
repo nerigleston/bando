@@ -42,16 +42,29 @@ public struct Tmux: Sendable {
             // set-option não aceita o prefixo "=" (has-session aceita).
             _ = try? tmux(["set-option", "-t", name, opt[0], opt[1]])
         }
-        enableHyperlinks()
+        applyServerOptions()
     }
 
-    /// Links OSC 8 (texto clicável com o endereço escondido, como as fontes
-    /// do Claude Code) só passam pelo tmux se o terminal anunciar "hyperlinks",
-    /// e o padrão do tmux para xterm não anuncia: o link chegava só como texto
-    /// e o ⌘+clique não abria. Índice fixo para não repetir a cada sessão; vale
-    /// para os terminais que se conectam depois.
-    func enableHyperlinks() {
-        _ = try? tmux(Self.hyperlinksOption)
+    /// Opções do servidor do Bando, aplicadas ao criar sessão e a cada vez que
+    /// um terminal se conecta (cobre sessões antigas):
+    /// - links OSC 8 (texto clicável com o endereço escondido, como as fontes
+    ///   do Claude Code) só passam se o terminal anunciar "hyperlinks", e o
+    ///   padrão do tmux para xterm não anuncia. Índice fixo para não repetir;
+    /// - cópia por OSC 52 vinda do agente: com o padrão "external" o tmux
+    ///   descarta a cópia que o próprio programa pede e nada chega ao macOS.
+    func applyServerOptions() {
+        for opt in Self.serverOptions { _ = try? tmux(opt) }
+    }
+
+    static let serverOptions: [[String]] = [
+        ["set-option", "-s", "terminal-features[90]", "xterm*:hyperlinks"],
+        ["set-option", "-s", "set-clipboard", "on"],
+    ]
+
+    /// Título que o programa do painel definiu (OSC 0/2). Nil se a sessão não existe.
+    public func paneTitle(_ name: String) -> String? {
+        guard let r = try? tmux(["display-message", "-p", "-t", "=\(name):", "#{pane_title}"]), r.ok else { return nil }
+        return r.trimmed
     }
 
     public func kill(_ name: String) throws {
@@ -103,15 +116,13 @@ public struct Tmux: Sendable {
     }
 
     /// Comando para anexar (usado pelo terminal do app e por `bando attach`).
-    /// No servidor do Bando liga os links OSC 8 antes, no mesmo comando: as
+    /// No servidor do Bando aplica `serverOptions` antes, no mesmo comando: as
     /// funções do terminal são lidas quando ele se conecta, então isso cobre
     /// sessões criadas antes da opção existir. O servidor padrão do usuário
     /// (sessões adotadas do Xirp) não é mexido.
     public func attachCommand(_ name: String) -> [String] {
         let attach = ["attach-session", "-t", "=\(name)"]
         guard server != "default" else { return [executable] + serverArgs + attach }
-        return [executable] + serverArgs + Self.hyperlinksOption + [";"] + attach
+        return [executable] + serverArgs + Self.serverOptions.flatMap { $0 + [";"] } + attach
     }
-
-    static let hyperlinksOption = ["set-option", "-s", "terminal-features[90]", "xterm*:hyperlinks"]
 }

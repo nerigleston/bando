@@ -81,6 +81,16 @@ public struct Git: Sendable {
         return name == ".env" || [".env.", ".env-", ".env_"].contains { name.hasPrefix($0) }
     }
 
+    /// O branch já foi enviado (tem upstream configurado).
+    public func hasUpstream(_ repo: String, branch: String) -> Bool {
+        (try? Shell.run(executable, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "\(branch)@{upstream}"], cwd: repo))?.ok ?? false
+    }
+
+    /// Renomeia o branch (vale também para o que está aberto num worktree).
+    public func renameBranch(_ repo: String, from old: String, to new: String) throws {
+        try Shell.check(executable, ["branch", "-m", old, new], cwd: repo)
+    }
+
     /// Mudanças não commitadas (inclui arquivos novos).
     public func hasUncommittedChanges(_ worktree: String) -> Bool {
         guard let r = try? Shell.run(executable, ["status", "--porcelain"], cwd: worktree), r.ok else { return false }
@@ -118,6 +128,32 @@ public struct Git: Sendable {
 
 /// Nome de branch e pasta a partir de um texto livre.
 public enum Slug {
+    /// Palavras que não dizem nada num nome de branch ("veja", "quero", "o", "pfvr"...).
+    static let filler: Set<String> = [
+        "a", "o", "as", "os", "um", "uma", "uns", "umas", "de", "da", "do", "das", "dos", "e", "ou", "que",
+        "em", "no", "na", "nos", "nas", "com", "para", "pra", "pro", "por", "pelo", "pela", "se", "me", "te",
+        "eu", "voce", "vc", "isso", "isto", "esse", "essa", "este", "esta", "aqui", "ai", "agora", "entao",
+        "tbm", "tambem", "so", "mais", "muito", "bem", "ja", "ainda", "pfvr", "pfv", "favor", "porfavor",
+        "veja", "ve", "ver", "olha", "olhe", "quero", "queria", "preciso", "precisa", "pode", "poderia",
+        "consegue", "ajuda", "ajude", "faz", "faca", "fazer", "tipo", "ok", "oi", "ola", "bom", "dia",
+        "the", "an", "to", "of", "in", "on", "for", "and", "or", "is", "it", "this", "that", "please", "pls",
+        "can", "you", "could", "would", "i", "we", "my", "check", "look", "want", "need",
+    ]
+
+    /// Resumo para branch e pasta: até 5 palavras que contam, até 32 caracteres.
+    /// "veja o veniti pfvr, quero que seja irreconhecível" → "veniti-seja-irreconhecivel".
+    public static func summary(_ text: String, maxWords: Int = 5, maxLength: Int = 32) -> String {
+        let words = make(text, maxLength: 400).split(separator: "-").map(String.init)
+        var kept: [String] = []
+        var length = 0
+        for w in words where !filler.contains(w) {
+            if kept.count == maxWords || length + w.count + (kept.isEmpty ? 0 : 1) > maxLength { break }
+            length += w.count + (kept.isEmpty ? 0 : 1)
+            kept.append(w)
+        }
+        return kept.isEmpty ? make(text, maxLength: maxLength) : kept.joined(separator: "-")
+    }
+
     public static func make(_ text: String, maxLength: Int = 40) -> String {
         let folded = text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "pt_BR"))
         var out = ""

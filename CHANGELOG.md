@@ -1,5 +1,11 @@
 # Mudanças
 
+## 0.1.33
+
+- Nome da sessão sem custo: o Bando lê o título que o agente escreve no terminal (o Claude Code põe "✳ resumo", o Codex põe o nome da conversa). O padrão de cada agente fica no catálogo (`terminal_title`). Para esses agentes, o título por modelo só é pedido se depois de 30 segundos o agente ainda não tiver dado nome.
+- Branch com nome legível: o nome inicial tira palavras vazias e fica com até 5 palavras (`bando/veniti-seja-irreconhecivel-b10f` em vez de `bando/veja-o-veniti-pfvr-quero-que-seja-irreco-b10f`). Quando a sessão ganha título, o branch passa a usá-lo (`bando/novo-robo-veniti-6c19`), uma vez só e só se ainda não foi enviado ao remoto. A pasta do worktree mantém o nome inicial.
+- Cópia pedida pelo agente (OSC 52) chega à área de transferência. O tmux do Bando descartava essa cópia.
+
 ## 0.1.32
 
 - Links clicáveis também no OpenCode: dentro do tmux ele desligava os links OSC 8. As sessões recebem `FORCE_HYPERLINK=1` (a menos que você já defina outro valor), e o ⌘+clique abre o link. O Antigravity já liga os links sozinho quando o tmux anuncia suporte, o que a 0.1.31 passou a fazer. Codex e Gemini CLI mostram o endereço por extenso, que já abria com ⌘+clique.

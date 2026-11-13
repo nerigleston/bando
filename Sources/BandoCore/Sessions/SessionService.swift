@@ -93,7 +93,7 @@ public final class SessionService: @unchecked Sendable {
         let id = UUID().uuidString.lowercased()
         // Nome provisório na hora; o título de verdade vem depois (SessionTitles).
         let baseName = req.name ?? req.prompt.map(SessionTitles.provisional) ?? "sessão \(String(id.prefix(4)))"
-        let slug = Slug.make(req.name ?? req.prompt ?? "sessao") + "-" + String(id.prefix(4))
+        let slug = Slug.summary(req.name ?? req.prompt ?? "sessao") + "-" + String(id.prefix(4))
 
         var worktree = req.project.path
         var branch: String? = nil
@@ -205,7 +205,7 @@ public final class SessionService: @unchecked Sendable {
         if let all = current["LC_ALL"], UTF8Locale.isUTF8(all) { env["LC_ALL"] = all }
         // Dentro do tmux, OpenCode (OpenTUI) e libs como supports-hyperlinks
         // desligam os links OSC 8 por cautela. O tmux do Bando repassa esses
-        // links (ver Tmux.hyperlinksOption) e o terminal do app abre com ⌘+clique.
+        // links (ver Tmux.serverOptions) e o terminal do app abre com ⌘+clique.
         env["FORCE_HYPERLINK"] = current["FORCE_HYPERLINK"] ?? "1"
         return env
     }

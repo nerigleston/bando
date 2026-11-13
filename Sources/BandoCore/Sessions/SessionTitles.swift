@@ -88,6 +88,19 @@ public enum SessionTitles {
         name.range(of: #"^sessão [0-9a-f]{4}$"#, options: .regularExpression) != nil
     }
 
+    // MARK: 2b. Título do terminal
+
+    /// Título que o agente pôs no terminal, pelo padrão `terminal_title` do
+    /// catálogo (grupo 1). Recusa o nome do próprio agente e nomes de pasta
+    /// (o título padrão antes de a conversa ter nome).
+    public static func fromTerminal(_ raw: String, pattern: String, rejecting: [String]) -> String? {
+        guard let re = try? Regex(pattern), let m = raw.firstMatch(of: re), m.output.count > 1,
+              let group = m.output[1].substring, let title = clean(String(group)) else { return nil }
+        let lower = title.lowercased()
+        guard !rejecting.contains(where: { !$0.isEmpty && $0.lowercased() == lower }) else { return nil }
+        return title
+    }
+
     // MARK: 3. Gerado
 
     /// Pede o título ao agente da sessão (pergunta única do catálogo, campo
@@ -172,6 +185,8 @@ extension SessionService {
         var title: String?
         // Só existe transcript para agentes que o gravam (hoje, o Claude Code).
         if !regenerate, let native = s.nativeId { title = SessionTitles.claudeTitle(nativeId: native) }
+        // Título que o agente escreveu no terminal (Codex, Claude com outra conta...).
+        if !regenerate, title == nil { title = terminalTitle(for: s) }
         // Sessão aberta vazia: a tarefa é a primeira mensagem escrita no agente, e o
         // título é gerado uma vez (no fim da primeira resposta), mesmo nos ganchos baratos.
         let placeholder = SessionTitles.isPlaceholder(s.name)
@@ -187,11 +202,41 @@ extension SessionService {
         // Confere de novo: o usuário pode ter renomeado enquanto o modelo pensava.
         guard let now = try store.session(id), !now.customName else { return nil }
         try update(id) { $0.name = title }
+        renameAutoBranch(id, title: title)
         return title
+    }
+
+    /// Branch criado com o resumo da tarefa ("bando/veniti-seja-irrecon-6c19")
+    /// passa a usar o título ("bando/novo-robo-veniti-6c19"). Só uma vez, só se
+    /// o nome ainda é o automático e o branch nunca foi enviado ao remoto.
+    func renameAutoBranch(_ id: String, title: String) {
+        guard let s = try? store.session(id), s.usesWorktree, let old = s.branch,
+              let git = try? Git() else { return }
+        let suffix = "-" + String(s.id.prefix(4))
+        guard old == "bando/" + Slug.summary(s.prompt ?? "sessao") + suffix else { return }
+        let new = "bando/" + Slug.summary(title) + suffix
+        guard new != old, !git.branchExists(s.worktreePath, new),
+              !git.hasUpstream(s.worktreePath, branch: old) else { return }
+        do {
+            try git.renameBranch(s.worktreePath, from: old, to: new)
+            try update(id) { $0.branch = new }
+            try record(id, kind: "branch-renamed", detail: "\(old) → \(new)")
+        } catch {
+            // Git ocupado (o agente commitando, por exemplo): fica o nome antigo.
+        }
     }
 }
 
 extension SessionService {
+    /// Título do terminal da sessão viva, se o agente tem `terminal_title` no catálogo.
+    func terminalTitle(for s: Session) -> String? {
+        guard let agent = try? config.agent(s.agent), let pattern = agent.terminalTitle,
+              let tmux = try? Tmux(server: s.tmuxServer), let raw = tmux.paneTitle(s.tmuxName) else { return nil }
+        let folders = [s.worktreePath, try? store.project(s.projectId)?.path].compactMap { $0 }
+            .map { ($0 as NSString).lastPathComponent }
+        return SessionTitles.fromTerminal(raw, pattern: pattern, rejecting: [agent.name, agent.id] + folders)
+    }
+
     /// Título pelo agente e provider da própria sessão. Modelo: o padrão do
     /// provider; com a conta do agente, o modelo barato do catálogo (`title_model`).
     func generateTitle(for s: Session, task: String, env: [String: String]?) -> String? {
