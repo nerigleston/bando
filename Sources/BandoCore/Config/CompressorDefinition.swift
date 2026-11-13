@@ -12,6 +12,11 @@ public struct CompressorDefinition: Sendable, Equatable, Identifiable {
     public var args: [String]
     public var env: [String: String]
     public var install: String?
+    /// Argumentos do proxy que gravam um JSONL por pedido (`{stats}` = arquivo da sessão).
+    public var statsArgs: [String] = []
+    /// Campos do JSONL com os tokens de entrada antes e depois da compressão.
+    public var statsBefore: String?
+    public var statsAfter: String?
     /// Como apontar cada agente para o proxy (`[compressors.<id>.for.<agente>]`).
     public var variants: [String: CompressorVariant]
 
@@ -47,6 +52,7 @@ public struct ProxyLaunch: Sendable, Equatable {
     public var install: String?
 
     public static let portPlaceholder = "{port}"
+    public static let statsPlaceholder = "{stats}"
 }
 
 struct CompressorVariantEntry: Codable, Sendable {
@@ -65,6 +71,9 @@ struct CompressorEntry: Codable, Sendable {
     var args: [String]?
     var env: [String: String]?
     var install: String?
+    var stats_args: [String]?
+    var stats_before: String?
+    var stats_after: String?
     var `for`: [String: CompressorVariantEntry]?
     var enabled: Bool?
 
@@ -88,7 +97,8 @@ struct CompressorEntry: Codable, Sendable {
         }
         return CompressorDefinition(
             id: id, name: name ?? id, cmd: cmd, args: args ?? [], env: env ?? [:],
-            install: install, variants: variants
+            install: install, statsArgs: stats_args ?? [], statsBefore: stats_before, statsAfter: stats_after,
+            variants: variants
         )
     }
 }
@@ -134,7 +144,7 @@ extension LaunchPlan {
             argv.insert(contentsOf: extra, at: min(cmdTokens, argv.count))
         }
 
-        var proxyArgv = compressor.cmd.split(separator: " ").map(String.init) + compressor.args
+        var proxyArgv = compressor.cmd.split(separator: " ").map(String.init) + compressor.args + compressor.statsArgs
         if var target = upstream {
             while target.hasSuffix("/") { target.removeLast() }
             if let strip = v.upstreamStrip, !strip.isEmpty, target.hasSuffix(strip) {
@@ -146,8 +156,9 @@ extension LaunchPlan {
                             env: compressor.env, install: compressor.install)
     }
 
-    /// Troca `{port}` pela porta escolhida, no agente e no proxy.
-    public func binding(port: Int) -> LaunchPlan {
+    /// Troca `{port}` pela porta escolhida, no agente e no proxy, e `{stats}`
+    /// pelo arquivo de economia da sessão.
+    public func binding(port: Int, statsFile: String = "/dev/null") -> LaunchPlan {
         guard var p = proxy else { return self }
         let token = ProxyLaunch.portPlaceholder
         let fill: (String) -> String = { $0.replacingOccurrences(of: token, with: String(port)) }
@@ -157,7 +168,7 @@ extension LaunchPlan {
             if case .literal(let text) = value { return .literal(fill(text)) }
             return value
         }
-        p.argv = p.argv.map(fill)
+        p.argv = p.argv.map { fill($0).replacingOccurrences(of: ProxyLaunch.statsPlaceholder, with: statsFile) }
         copy.proxy = p
         return copy
     }

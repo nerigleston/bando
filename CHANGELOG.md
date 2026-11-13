@@ -1,5 +1,9 @@
 # Mudanças
 
+## Próxima versão
+
+- Sessão com compressão mostra no cabeçalho um selo com o compressor e quanto deixou de ir ao modelo (ex.: "Headroom −56.1k (13%)"). Passando o mouse, aparecem os pedidos e os tokens de entrada antes e depois. O proxy grava uma linha por pedido em `run/<sessão>.compressor.jsonl`, só com contagens de tokens, e o app lê apenas as linhas novas quando a sessão muda de estado. Sessões criadas na 0.1.36 mostram o selo sem números até serem retomadas.
+
 ## 0.1.36
 
 - Compressão opcional por sessão, com o [Headroom](https://github.com/headroomlabs-ai/headroom): um proxy local que encolhe saídas de comandos (logs, build, testes) antes de irem ao modelo. Vem desligada. Liga na nova sessão (campo Compressão) ou com `bando new --compressor headroom`. Funciona no Claude Code e no Codex, com ou sem provider. O `bando run` inicia o proxy numa porta livre e o encerra quando a sessão para; nada fica rodando depois. Medido em 13/11/2026 numa tarefa com trechos de log: 27% menos tokens de entrada no último pedido com Codex + Venice e 25% com Claude Code. Sessão curta ou só de leitura de código ganha perto de zero. Requer `uv tool install --python 3.13 "headroom-ai[proxy]"`; `bando compressors` mostra se está instalado.

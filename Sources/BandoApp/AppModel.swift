@@ -16,6 +16,8 @@ final class AppModel {
     var availability: [String: AgentAvailability] = [:]
     /// Contexto e custo por sessão (só agentes que gravam uso, como o Claude Code).
     var contexts: [String: ContextSummary] = [:]
+    /// Economia do compressor por sessão (só sessões com compressor).
+    var compression: [String: CompressorSavings] = [:]
     var prices = PriceTable(models: [:])
     var loadError: String?
 
@@ -264,6 +266,7 @@ final class AppModel {
         multiSelection.formIntersection(fresh.map(\.id))
         if let sel = selection, !sessions.contains(where: { $0.id == sel }) { selection = nil }
         refreshContexts()
+        refreshCompression()
         refreshTmux()
         // Grade ligada mas vazia (ex.: ao abrir o app): preenche com as ativas.
         if gridMode && gridSessions.isEmpty && sessions.contains(where: \.status.isLive) { autoFillGrid() }
@@ -340,6 +343,27 @@ final class AppModel {
             for s in targets { if let c = ContextSummary.quick(session: s, store: store, prices: prices) { found[s.id] = c } }
             let result = found
             await MainActor.run { self.contexts.merge(result) { _, n in n } }
+        }
+    }
+
+    /// Leitores do JSONL do compressor, por sessão: cada um lembra até onde leu.
+    @ObservationIgnored private var compressionReaders: [String: CompressorSavingsReader] = [:]
+
+    /// Atualiza a economia do compressor das sessões na tela. Roda quando a
+    /// lista de sessões muda (fim de turno, troca de estado), sem timer. Só
+    /// lê as linhas novas do arquivo, poucos KB por turno.
+    func refreshCompression() {
+        guard let paths = service?.paths, let config else { return }
+        let visible = Set([selection].compactMap { $0 } + (gridMode ? gridCells.prefix(cellCount).compactMap { $0 } : []))
+        for s in sessions where visible.contains(s.id) {
+            guard let id = s.compressor, let def = config.compressors[id] else { continue }
+            if compressionReaders[s.id] == nil {
+                compressionReaders[s.id] = CompressorSavingsReader(compressor: def, sessionId: s.id, paths: paths)
+            }
+            guard var reader = compressionReaders[s.id] else { continue }
+            let totals = reader.update()
+            compressionReaders[s.id] = reader
+            if compression[s.id] != totals { compression[s.id] = totals }
         }
     }
 

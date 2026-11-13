@@ -37,6 +37,10 @@ public struct BandoPaths: Sendable {
     public var themesFile: URL { configDir.appendingPathComponent("themes.toml") }
     public var mcpFile: URL { configDir.appendingPathComponent("mcp.toml") }
     public var database: URL { stateDir.appendingPathComponent("bando.sqlite") }
+    /// JSONL do compressor da sessão: uma linha por pedido, só contagens de tokens.
+    public func compressorStatsFile(sessionId: String) -> URL {
+        stateDir.appendingPathComponent("run").appendingPathComponent("\(sessionId).compressor.jsonl")
+    }
 
     /// Pasta dos worktrees de um repositório: `<pai>/.bando-worktrees/<repo>`.
     /// Fica no mesmo disco do repositório, então o git não copia objetos.

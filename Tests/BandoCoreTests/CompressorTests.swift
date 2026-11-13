@@ -19,7 +19,7 @@ struct CompressorTests {
             agent: config.agent("claude"), compressor: config.compressor("headroom")
         ))
         #expect(plan.env["ANTHROPIC_BASE_URL"] == .literal("http://127.0.0.1:{port}"))
-        #expect(plan.proxy?.argv == ["headroom", "proxy", "--host", "127.0.0.1", "--port", "{port}"])
+        #expect(plan.proxy?.argv == ["headroom", "proxy", "--host", "127.0.0.1", "--port", "{port}", "--log-file", "{stats}"])
         #expect(plan.proxy?.env["HEADROOM_BEACON"] == "off")
     }
 
@@ -90,6 +90,43 @@ struct CompressorTests {
                 agent: config.agent("claude"), provider: provider, compressor: config.compressor("headroom")
             ))
         }
+    }
+
+    @Test("o proxy grava o JSONL de economia no arquivo da sessão")
+    func statsFile() throws {
+        let plan = try LaunchPlan.build(LaunchRequest(
+            agent: config.agent("claude"), compressor: config.compressor("headroom")
+        )).binding(port: 4000, statsFile: "/tmp/s1.compressor.jsonl")
+        #expect(plan.proxy?.argv.suffix(2) == ["--log-file", "/tmp/s1.compressor.jsonl"])
+        #expect(!(plan.proxy?.argv ?? []).contains { $0.contains("{stats}") })
+    }
+
+    @Test("leitura incremental: só linhas novas, linha incompleta espera, arquivo recriado recomeça")
+    func savingsReader() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("bando-savings-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("s.jsonl")
+        var reader = CompressorSavingsReader(file: file, beforeKey: "input_tokens_original", afterKey: "input_tokens_optimized")
+        #expect(reader.update() == CompressorSavings())
+
+        let l1 = #"{"input_tokens_original": 1000, "input_tokens_optimized": 900, "model": "x"}"#
+        let l2 = #"{"input_tokens_original": 2000, "input_tokens_optimized": 1000}"#
+        try "\(l1)\n{\"input_tokens_orig".write(to: file, atomically: false, encoding: .utf8)
+        #expect(reader.update() == CompressorSavings(requests: 1, before: 1000, after: 900))
+
+        // Completa a linha cortada e acrescenta outra; uma linha sem os campos é ignorada.
+        let h = try FileHandle(forWritingTo: file)
+        try h.seekToEnd()
+        try h.write(contentsOf: Data("inal\": 500, \"input_tokens_optimized\": 500}\n\(l2)\n{\"outro\": 1}\n".utf8))
+        try h.close()
+        let total = reader.update()
+        #expect(total == CompressorSavings(requests: 3, before: 3500, after: 2400))
+        #expect(total.saved == 1100)
+        #expect(abs(total.fraction - 1100.0 / 3500.0) < 0.0001)
+
+        try "\(l2)\n".write(to: file, atomically: true, encoding: .utf8)
+        #expect(reader.update() == CompressorSavings(requests: 1, before: 2000, after: 1000))
     }
 
     @Test("todo compressor aponta para agentes que existem no catálogo")

@@ -498,6 +498,7 @@ struct SessionPane: View {
                     .tooltip(session.worktreePath)
             }
             ContextRing(session: session)
+            CompressionBadge(session: session)
             if session.status == .waiting, let d = session.statusDetail {
                 Text(d).font(.system(size: 12)).foregroundStyle(StateColor.waiting).lineLimit(1)
             }
