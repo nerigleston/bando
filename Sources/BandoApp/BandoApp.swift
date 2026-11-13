@@ -180,18 +180,78 @@ final class Updater: NSObject, ObservableObject, SPUStandardUserDriverDelegate, 
             MainActor.assumeIsolated { self?.checkQuietly(minInterval: 10 * 60) }
         }
         timer?.tolerance = 60
+        // Reabriu no meio de "atualizar até a última": procura a próxima já.
+        if UserDefaults.standard.bool(forKey: Self.chainKey) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                MainActor.assumeIsolated {
+                    guard let updater = self?.controller?.updater, updater.canCheckForUpdates else {
+                        UserDefaults.standard.removeObject(forKey: Self.chainKey); return
+                    }
+                    updater.checkForUpdatesInBackground()
+                }
+            }
+        }
     }
 
     /// Checagem em segundo plano: só mostra algo se houver versão nova.
+    /// Com uma versão já baixada o Sparkle não consulta o appcast de novo até
+    /// reiniciar (só retoma a baixada); aí o Bando mesmo confere se saiu outra.
     private func checkQuietly(minInterval: TimeInterval) {
-        guard let updater = controller?.updater, updater.canCheckForUpdates,
-              Date().timeIntervalSince(lastCheck) >= minInterval else { return }
+        guard Date().timeIntervalSince(lastCheck) >= minInterval else { return }
+        if readyVersion != nil {
+            lastCheck = Date()
+            checkFeedForNewer()
+            return
+        }
+        guard let updater = controller?.updater, updater.canCheckForUpdates else { return }
         lastCheck = Date()
         updater.checkForUpdatesInBackground()
     }
 
-    /// Reinicia e instala a versão já baixada.
-    func installReadyUpdate() { installNow?() }
+    /// Versão mais nova no appcast do que a baixada (o aviso passa a mostrar esta).
+    @Published private(set) var newerVersion: String?
+    /// Versão mostrada no aviso e no menu: a mais nova conhecida.
+    var offeredVersion: String? { newerVersion ?? readyVersion }
+
+    /// Lê o appcast (poucos KB) e guarda a maior versão, se passar da baixada.
+    private func checkFeedForNewer() {
+        guard let ready = readyVersion,
+              let feed = (Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String).flatMap(URL.init(string:)) else { return }
+        Task { [weak self] in
+            guard let (data, _) = try? await URLSession.shared.data(from: feed) else { return }
+            let latest = Self.versions(inAppcast: String(decoding: data, as: UTF8.self)).max(by: Self.isOlder)
+            await MainActor.run {
+                guard let self, let latest, Self.isOlder(ready, latest), latest != self.newerVersion else { return }
+                self.newerVersion = latest
+                NotificationCenter.default.post(name: Self.updateReady, object: latest)
+            }
+        }
+    }
+
+    nonisolated static func versions(inAppcast xml: String) -> [String] {
+        xml.matches(of: /<sparkle:shortVersionString>([0-9][0-9.]*)</).map { String($0.output.1) }
+    }
+
+    /// "0.1.31" < "0.1.34", comparando número a número.
+    nonisolated static func isOlder(_ a: String, _ b: String) -> Bool {
+        let x = a.split(separator: ".").map { Int($0) ?? 0 }, y = b.split(separator: ".").map { Int($0) ?? 0 }
+        for i in 0..<max(x.count, y.count) {
+            let l = i < x.count ? x[i] : 0, r = i < y.count ? y[i] : 0
+            if l != r { return l < r }
+        }
+        return false
+    }
+
+    /// Pedido de atualizar até a última, guardado entre reinícios: a versão
+    /// baixada instala, o app reabre e a mais nova instala sem outro clique.
+    nonisolated private static let chainKey = "bando.updateToLatest"
+
+    /// Reinicia e instala a versão já baixada. Se o appcast já tem outra mais
+    /// nova, emenda a instalação dela depois de reabrir.
+    func installReadyUpdate() {
+        if newerVersion != nil { UserDefaults.standard.set(true, forKey: Self.chainKey) }
+        installNow?()
+    }
 
     // MARK: Atualização baixada em segundo plano (SPUUpdaterDelegate)
 
@@ -203,9 +263,16 @@ final class Updater: NSObject, ObservableObject, SPUStandardUserDriverDelegate, 
         let version = item.displayVersionString
         // O Sparkle chama os delegates na main thread.
         nonisolated(unsafe) let install = immediateInstallHandler
+        // Clique anterior pediu a última versão: instala agora, sem perguntar de novo.
+        if UserDefaults.standard.bool(forKey: Self.chainKey) {
+            UserDefaults.standard.removeObject(forKey: Self.chainKey)
+            DispatchQueue.main.async { install() }
+            return true
+        }
         MainActor.assumeIsolated {
             self.installNow = install
             self.readyVersion = version
+            self.newerVersion = nil
             NotificationCenter.default.post(name: Self.updateReady, object: version)
         }
         Task { @MainActor in
@@ -256,7 +323,7 @@ struct CheckForUpdatesButton: View {
     @ObservedObject var updater: Updater
 
     var body: some View {
-        if let v = updater.readyVersion {
+        if let v = updater.offeredVersion {
             Button("Reiniciar e instalar a \(v)") { updater.installReadyUpdate() }
         }
         Button("Procurar atualizações…") { updater.controller?.checkForUpdates(nil) }

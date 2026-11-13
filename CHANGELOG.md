@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.1.35
+
+- O aviso de atualização mostra a versão mais nova. Com uma versão já baixada, o Sparkle não consultava o appcast de novo até o app reiniciar, e o aviso ficava preso nela (ex.: "0.1.31 pronto" com a 0.1.33 publicada). Agora o Bando confere o appcast; ao clicar, instala a baixada, reabre e emenda a mais nova sem outro clique.
+
 ## 0.1.34
 
 - Imagem colada com ⌘V na tarefa da nova sessão (e no campo do projeto) vira um PNG e entra como caminho do arquivo. Antes o campo ignorava a imagem. Arquivo copiado no Finder entra pelo caminho.
