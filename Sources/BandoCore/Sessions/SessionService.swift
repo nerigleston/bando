@@ -203,6 +203,10 @@ public final class SessionService: @unchecked Sendable {
         env["LANG"] = UTF8Locale.lang(env: current)
         // LC_ALL vence o LANG; só passa adiante se também for UTF-8.
         if let all = current["LC_ALL"], UTF8Locale.isUTF8(all) { env["LC_ALL"] = all }
+        // Dentro do tmux, OpenCode (OpenTUI) e libs como supports-hyperlinks
+        // desligam os links OSC 8 por cautela. O tmux do Bando repassa esses
+        // links (ver Tmux.hyperlinksOption) e o terminal do app abre com ⌘+clique.
+        env["FORCE_HYPERLINK"] = current["FORCE_HYPERLINK"] ?? "1"
         return env
     }
 

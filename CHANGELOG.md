@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.1.32
+
+- Links clicáveis também no OpenCode: dentro do tmux ele desligava os links OSC 8. As sessões recebem `FORCE_HYPERLINK=1` (a menos que você já defina outro valor), e o ⌘+clique abre o link. O Antigravity já liga os links sozinho quando o tmux anuncia suporte, o que a 0.1.31 passou a fazer. Codex e Gemini CLI mostram o endereço por extenso, que já abria com ⌘+clique.
+
 ## 0.1.31
 
 - ⌘+clique abre os links com texto do agente (como as fontes que o Claude Code lista). O tmux descartava o endereço desses links (OSC 8) e só o texto azul chegava ao terminal. O Bando agora liga os hyperlinks no servidor tmux dele, também para sessões já abertas depois que o terminal reconecta.

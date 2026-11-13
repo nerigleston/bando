@@ -30,7 +30,10 @@ struct UTF8LocaleTests {
         let s = Session(id: "x", projectId: "p", name: "n", prompt: nil, agent: "shell", provider: nil, model: nil,
                         worktreePath: root.path, branch: nil, baseBranch: nil, usesWorktree: false,
                         tmuxName: "bando_x", status: .starting, dependsOn: nil)
-        let lang = try #require(service.sessionEnvironment(s)["LANG"])
+        let env = service.sessionEnvironment(s)
+        let lang = try #require(env["LANG"])
         #expect(UTF8Locale.isUTF8(lang))
+        // Links OSC 8 ligados para agentes que desligam dentro do tmux (OpenCode).
+        #expect(env["FORCE_HYPERLINK"] != nil)
     }
 }
