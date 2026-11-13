@@ -33,7 +33,9 @@
 [compressors.headroom]
 name    = "Headroom"
 cmd     = "headroom"
-args    = ["proxy", "--host", "127.0.0.1", "--port", "{port}"]
+# --request-timeout-seconds: o padrão (300) derruba pedidos longos a modelo local (Ollama leva
+# mais de 5 min para ler o primeiro pedido do Claude Code); 3000 acompanha o API_TIMEOUT_MS do agente.
+args    = ["proxy", "--host", "127.0.0.1", "--port", "{port}", "--request-timeout-seconds", "3000"]
 env     = { HEADROOM_BEACON = "off", DO_NOT_TRACK = "1" }
 install = "uv tool install --python 3.13 \"headroom-ai[proxy]\""
 # --log-file grava uma linha por pedido com contagens de tokens, sem o texto das mensagens.

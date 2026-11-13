@@ -60,7 +60,11 @@ name = "Conta do agente"
 #
 # AIDER (https://aider.chat/docs/llms.html): OpenAI-compatível = OPENAI_API_BASE +
 #   OPENAI_API_KEY e o modelo precisa do prefixo "openai/". Ollama usa prefixo "ollama_chat/",
-#   LM Studio "lm_studio/", OpenRouter "openrouter/". O Bando precisa aplicar o prefixo no -m.
+#   LM Studio "lm_studio/", OpenRouter "openrouter/". O Bando aplica com model_prefix na variante.
+#
+# model_prefix (por variante): prefixo que o agente exige no nome do modelo. Entra só se o modelo
+#   ainda não começar com ele. OpenCode: "ollama/", "openrouter/", "venice/" (conferidos em
+#   `opencode models`, v2.2.6). Aider: prefixos da documentação dele, não testados aqui.
 #
 # GOOSE (https://goose-docs.ai/docs/getting-started/providers): a página lista as variáveis,
 #   mas só mostra o ID de GOOSE_PROVIDER para zai_coding_plan. Os demais IDs (anthropic,
@@ -442,6 +446,7 @@ args = ["-c", "model_provider=\"openrouter\"", "-c", "model_providers.openrouter
 
 [providers.openrouter.for.opencode]
 env = { OPENROUTER_API_KEY = "keychain:bando/openrouter" }
+model_prefix = "openrouter/"
 
 [providers.openrouter.for.crush]
 env = { OPENROUTER_API_KEY = "keychain:bando/openrouter" }
@@ -452,6 +457,7 @@ env = { OPENAI_API_KEY = "keychain:bando/openrouter", OPENAI_BASE_URL = "https:/
 # aider: modelo com prefixo "openrouter/"
 [providers.openrouter.for.aider]
 env = { OPENROUTER_API_KEY = "keychain:bando/openrouter" }
+model_prefix = "openrouter/"
 
 [providers.openrouter.for.goose]
 env = { GOOSE_PROVIDER = "openrouter", OPENROUTER_API_KEY = "keychain:bando/openrouter" }
@@ -577,6 +583,7 @@ args = ["-c", "service_tier=\"auto\"", "-c", "model_provider=\"venice\"", "-c", 
 
 [providers.venice.for.opencode]
 env = { VENICE_API_KEY = "keychain:bando/venice" }
+model_prefix = "venice/"
 
 [providers.venice.for.qwen]
 env = { OPENAI_API_KEY = "keychain:bando/venice", OPENAI_BASE_URL = "https://api.venice.ai/api/v1" }
@@ -993,12 +1000,14 @@ args = ["--oss", "-c", "oss_provider=\"ollama\""]
 
 [providers.ollama.for.opencode]
 env = {}
+model_prefix = "ollama/"
 
 [providers.ollama.for.qwen]
 env = { OPENAI_API_KEY = "ollama", OPENAI_BASE_URL = "http://localhost:11434/v1" }
 
 [providers.ollama.for.aider]
 env = { OLLAMA_API_BASE = "http://127.0.0.1:11434" }
+model_prefix = "ollama_chat/"
 
 [providers.ollama.for.goose]
 env = { GOOSE_PROVIDER = "ollama", OLLAMA_HOST = "localhost:11434" }
@@ -1047,6 +1056,7 @@ env = { OPENAI_API_KEY = "lmstudio", OPENAI_BASE_URL = "http://localhost:1234/v1
 
 [providers.lmstudio.for.aider]
 env = { LM_STUDIO_API_BASE = "http://localhost:1234/v1", LM_STUDIO_API_KEY = "dummy-api-key" }
+model_prefix = "lm_studio/"
 
 [providers.lmstudio.for.goose]
 env = { GOOSE_PROVIDER = "lmstudio" }

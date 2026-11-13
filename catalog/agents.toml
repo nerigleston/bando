@@ -126,10 +126,16 @@ idle_after = 4
 #        simples de "turno terminou" documentado. O servidor local também expõe API (opencode api/serve).
 # Providers: `opencode auth`; opencode.json(c) "provider"; variáveis *_API_KEY de cada provider
 # Atenção: o pacote npm opencode-ai está em 1.19.5 (v1, flags diferentes, tinha --model). Instalar pelo script.
+# Modelo: a v2 não tem --model na tela interativa; o modelo vai em OPENCODE_CONFIG_CONTENT ("model").
+#         --standalone: o servidor compartilhado em segundo plano ignora essa variável (e o MCP do Bando,
+#         que vai nela também). Com servidor próprio por sessão, vale. Testado na v2.2.6 em 13/11/2026.
+#         O nome precisa do provider na frente ("ollama/qwen3"): ver model_prefix nos providers.
 [agents.opencode]
 name     = "OpenCode"
 mcp      = "opencode"
 cmd      = "opencode"
+args     = ["--standalone"]
+model_config = { env = "OPENCODE_CONFIG_CONTENT", key = "model" }
 prompt   = ["--prompt", "{prompt}"]
 resume   = ["--session", "{native_id}"]
 continue = ["--continue"]

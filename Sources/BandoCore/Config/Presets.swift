@@ -132,10 +132,16 @@ public enum Presets {
     #        simples de "turno terminou" documentado. O servidor local também expõe API (opencode api/serve).
     # Providers: `opencode auth`; opencode.json(c) "provider"; variáveis *_API_KEY de cada provider
     # Atenção: o pacote npm opencode-ai está em 1.19.5 (v1, flags diferentes, tinha --model). Instalar pelo script.
+    # Modelo: a v2 não tem --model na tela interativa; o modelo vai em OPENCODE_CONFIG_CONTENT ("model").
+    #         --standalone: o servidor compartilhado em segundo plano ignora essa variável (e o MCP do Bando,
+    #         que vai nela também). Com servidor próprio por sessão, vale. Testado na v2.2.6 em 13/11/2026.
+    #         O nome precisa do provider na frente ("ollama/qwen3"): ver model_prefix nos providers.
     [agents.opencode]
     name     = "OpenCode"
     mcp      = "opencode"
     cmd      = "opencode"
+    args     = ["--standalone"]
+    model_config = { env = "OPENCODE_CONFIG_CONTENT", key = "model" }
     prompt   = ["--prompt", "{prompt}"]
     resume   = ["--session", "{native_id}"]
     continue = ["--continue"]
@@ -622,7 +628,11 @@ public enum Presets {
     #
     # AIDER (https://aider.chat/docs/llms.html): OpenAI-compatível = OPENAI_API_BASE +
     #   OPENAI_API_KEY e o modelo precisa do prefixo "openai/". Ollama usa prefixo "ollama_chat/",
-    #   LM Studio "lm_studio/", OpenRouter "openrouter/". O Bando precisa aplicar o prefixo no -m.
+    #   LM Studio "lm_studio/", OpenRouter "openrouter/". O Bando aplica com model_prefix na variante.
+    #
+    # model_prefix (por variante): prefixo que o agente exige no nome do modelo. Entra só se o modelo
+    #   ainda não começar com ele. OpenCode: "ollama/", "openrouter/", "venice/" (conferidos em
+    #   `opencode models`, v2.2.6). Aider: prefixos da documentação dele, não testados aqui.
     #
     # GOOSE (https://goose-docs.ai/docs/getting-started/providers): a página lista as variáveis,
     #   mas só mostra o ID de GOOSE_PROVIDER para zai_coding_plan. Os demais IDs (anthropic,
@@ -1004,6 +1014,7 @@ public enum Presets {
 
     [providers.openrouter.for.opencode]
     env = { OPENROUTER_API_KEY = "keychain:bando/openrouter" }
+    model_prefix = "openrouter/"
 
     [providers.openrouter.for.crush]
     env = { OPENROUTER_API_KEY = "keychain:bando/openrouter" }
@@ -1014,6 +1025,7 @@ public enum Presets {
     # aider: modelo com prefixo "openrouter/"
     [providers.openrouter.for.aider]
     env = { OPENROUTER_API_KEY = "keychain:bando/openrouter" }
+    model_prefix = "openrouter/"
 
     [providers.openrouter.for.goose]
     env = { GOOSE_PROVIDER = "openrouter", OPENROUTER_API_KEY = "keychain:bando/openrouter" }
@@ -1139,6 +1151,7 @@ public enum Presets {
 
     [providers.venice.for.opencode]
     env = { VENICE_API_KEY = "keychain:bando/venice" }
+    model_prefix = "venice/"
 
     [providers.venice.for.qwen]
     env = { OPENAI_API_KEY = "keychain:bando/venice", OPENAI_BASE_URL = "https://api.venice.ai/api/v1" }
@@ -1555,12 +1568,14 @@ public enum Presets {
 
     [providers.ollama.for.opencode]
     env = {}
+    model_prefix = "ollama/"
 
     [providers.ollama.for.qwen]
     env = { OPENAI_API_KEY = "ollama", OPENAI_BASE_URL = "http://localhost:11434/v1" }
 
     [providers.ollama.for.aider]
     env = { OLLAMA_API_BASE = "http://127.0.0.1:11434" }
+    model_prefix = "ollama_chat/"
 
     [providers.ollama.for.goose]
     env = { GOOSE_PROVIDER = "ollama", OLLAMA_HOST = "localhost:11434" }
@@ -1609,6 +1624,7 @@ public enum Presets {
 
     [providers.lmstudio.for.aider]
     env = { LM_STUDIO_API_BASE = "http://localhost:1234/v1", LM_STUDIO_API_KEY = "dummy-api-key" }
+    model_prefix = "lm_studio/"
 
     [providers.lmstudio.for.goose]
     env = { GOOSE_PROVIDER = "lmstudio" }
@@ -2059,7 +2075,9 @@ public enum Presets {
     [compressors.headroom]
     name    = "Headroom"
     cmd     = "headroom"
-    args    = ["proxy", "--host", "127.0.0.1", "--port", "{port}"]
+    # --request-timeout-seconds: o padrão (300) derruba pedidos longos a modelo local (Ollama leva
+    # mais de 5 min para ler o primeiro pedido do Claude Code); 3000 acompanha o API_TIMEOUT_MS do agente.
+    args    = ["proxy", "--host", "127.0.0.1", "--port", "{port}", "--request-timeout-seconds", "3000"]
     env     = { HEADROOM_BEACON = "off", DO_NOT_TRACK = "1" }
     install = "uv tool install --python 3.13 \"headroom-ai[proxy]\""
     # --log-file grava uma linha por pedido com contagens de tokens, sem o texto das mensagens.

@@ -19,7 +19,8 @@ struct CompressorTests {
             agent: config.agent("claude"), compressor: config.compressor("headroom")
         ))
         #expect(plan.env["ANTHROPIC_BASE_URL"] == .literal("http://127.0.0.1:{port}"))
-        #expect(plan.proxy?.argv == ["headroom", "proxy", "--host", "127.0.0.1", "--port", "{port}", "--log-file", "{stats}"])
+        #expect(plan.proxy?.argv == ["headroom", "proxy", "--host", "127.0.0.1", "--port", "{port}",
+                                    "--request-timeout-seconds", "3000", "--log-file", "{stats}"])
         #expect(plan.proxy?.env["HEADROOM_BEACON"] == "off")
     }
 
