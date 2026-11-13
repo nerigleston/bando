@@ -1,5 +1,10 @@
 # Mudanças
 
+## Próxima versão
+
+- Compressão opcional por sessão, com o [Headroom](https://github.com/headroomlabs-ai/headroom): um proxy local que encolhe saídas de comandos (logs, build, testes) antes de irem ao modelo. Vem desligada. Liga na nova sessão (campo Compressão) ou com `bando new --compressor headroom`. Funciona no Claude Code e no Codex, com ou sem provider. O `bando run` inicia o proxy numa porta livre e o encerra quando a sessão para; nada fica rodando depois. Medido em 13/11/2026 numa tarefa com trechos de log: 27% menos tokens de entrada no último pedido com Codex + Venice e 25% com Claude Code. Sessão curta ou só de leitura de código ganha perto de zero. Requer `uv tool install --python 3.13 "headroom-ai[proxy]"`; `bando compressors` mostra se está instalado.
+- Venice no Codex: o preset passa `service_tier="auto"`. Com o modo Fast ligado no `~/.codex/config.toml`, a Venice recusava todo pedido.
+
 ## 0.1.35
 
 - O aviso de atualização mostra a versão mais nova. Com uma versão já baixada, o Sparkle não consultava o appcast de novo até o app reiniciar, e o aviso ficava preso nela (ex.: "0.1.31 pronto" com a 0.1.33 publicada). Agora o Bando confere o appcast; ao clicar, instala a baixada, reabre e emenda a mais nova sem outro clique.

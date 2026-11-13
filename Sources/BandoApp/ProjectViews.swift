@@ -25,6 +25,8 @@ struct Composer: View {
     @State private var showOptions = false
     @State private var creating = false
     @State private var error: String?
+    /// Compressor lembrado da última vez ("" = sem compressão).
+    @AppStorage("sessionCompressor") private var compressor = ""
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -130,10 +132,19 @@ struct Composer: View {
             .sorted { ($0.id == "default" ? 0 : 1, $0.name) < ($1.id == "default" ? 0 : 1, $1.name) }
     }
 
+    /// Compressores que servem para o agente escolhido.
+    var compressors: [CompressorDefinition] { model.config?.compressors(for: agent) ?? [] }
+
     var options: some View {
         Form {
             Picker("Provider", selection: $provider) { ForEach(providers) { Text($0.name).tag($0.id) } }
             TextField("Modelo", text: $modelName, prompt: Text("padrão da CLI"))
+            if !compressors.isEmpty {
+                Picker("Compressão", selection: $compressor) {
+                    Text("Sem compressão").tag("")
+                    ForEach(compressors) { Text($0.name).tag($0.id) }
+                }
+            }
             if currentProject?.isGeneral != true {
                 Toggle("Worktree separado", isOn: $useWorktree)
                 if useWorktree { TextField("Branch", text: $branch, prompt: Text("bando/<nome>")) }
@@ -157,7 +168,8 @@ struct Composer: View {
         let req = SessionService.NewSession(
             project: project, prompt: prompt.isEmpty ? nil : prompt, agent: agent,
             provider: provider == "default" ? nil : provider, model: modelName.isEmpty ? nil : modelName,
-            branch: branch.isEmpty ? nil : branch, useWorktree: useWorktree, dependsOn: dependsOn
+            branch: branch.isEmpty ? nil : branch, useWorktree: useWorktree, dependsOn: dependsOn,
+            compressor: compressors.contains { $0.id == compressor } ? compressor : nil
         )
         model.lastAgent = agent
         Task.detached {

@@ -26,6 +26,7 @@ struct New: ParsableCommand {
           bando new -a agy "refatorar a API"
           bando new -a claude -p openrouter -m z-ai/glm-5 "revisar testes"
           bando new --depends-on a1b2 "escrever a documentação"
+          bando new -a codex -p venice --compressor headroom "investigar o build"
         """
     )
 
@@ -59,6 +60,9 @@ struct New: ParsableCommand {
     @Option(name: .long, help: "Só inicia quando esta sessão terminar a primeira vez.")
     var dependsOn: String?
 
+    @Option(name: .long, help: "Compressor opcional (veja bando compressors). Sem a opção, nada é comprimido.")
+    var compressor: String?
+
     @Flag(name: .long, help: "Entra no terminal da sessão logo depois de criar.")
     var attach = false
 
@@ -70,10 +74,12 @@ struct New: ParsableCommand {
             project: proj, prompt: prompt, name: name,
             agent: agent ?? proj.defaultAgent ?? "claude",
             provider: provider ?? proj.defaultProvider, model: model,
-            branch: branch, baseBranch: base, useWorktree: !noWorktree, dependsOn: dependsOn
+            branch: branch, baseBranch: base, useWorktree: !noWorktree, dependsOn: dependsOn,
+            compressor: compressor
         ))
         print("\(s.shortId)  \(s.name)")
         print("  \(s.status.label) · \(s.agent)\(s.provider.map { "·\($0)" } ?? "") · \(s.worktreePath)")
+        if let c = s.compressor { print("  compressão: \(c)") }
         if s.status == .queued, let parent = s.dependsOn {
             print("  na fila: inicia quando \(parent.prefix(8)) terminar")
         }

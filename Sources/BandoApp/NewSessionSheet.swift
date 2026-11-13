@@ -18,6 +18,8 @@ struct NewSessionSheet: View {
     @State private var dependsOn: String?
     @State private var creating = false
     @State private var error: String?
+    /// Compressor lembrado da última vez ("" = sem compressão).
+    @AppStorage("sessionCompressor") private var compressor = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -64,6 +66,14 @@ struct NewSessionSheet: View {
             VStack(alignment: .leading, spacing: 6) {
                 FieldLabel("Modelo", hint: "opcional")
                 TextField(modelHint, text: $modelName).fieldBox()
+            }
+            if !compressors.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    FieldLabel("Compressão", hint: "opcional")
+                    SelectField(selection: $compressor, options: [("", "Sem compressão")] + compressors.map { ($0.id, $0.name) })
+                    Text("Proxy local que encolhe saídas de comandos antes de irem ao modelo. Roda só enquanto a sessão está aberta.")
+                        .font(.system(size: 11.5)).foregroundStyle(p.tertiary)
+                }
             }
 
             DialogDivider()
@@ -127,6 +137,9 @@ struct NewSessionSheet: View {
         return list.sorted { ($0.id == "default" ? 0 : 1, $0.name) < ($1.id == "default" ? 0 : 1, $1.name) }
     }
 
+    /// Compressores que servem para o agente escolhido.
+    var compressors: [CompressorDefinition] { model.config?.compressors(for: agent) ?? [] }
+
     var modelHint: String {
         model.config?.providers[provider]?.models.first ?? "padrão da CLI"
     }
@@ -165,7 +178,8 @@ struct NewSessionSheet: View {
             model: modelName.isEmpty ? nil : modelName,
             branch: branch.isEmpty ? nil : branch,
             useWorktree: useWorktree,
-            dependsOn: dependsOn
+            dependsOn: dependsOn,
+            compressor: compressors.contains { $0.id == compressor } ? compressor : nil
         )
         Task.detached {
             do {

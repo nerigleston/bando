@@ -38,6 +38,10 @@ public enum Presets {{
     public static let prices = {DELIM}"""
 {body("prices")}
     """{DELIM}
+
+    public static let compressors = {DELIM}"""
+{body("compressors")}
+    """{DELIM}
 }}
 '''
 

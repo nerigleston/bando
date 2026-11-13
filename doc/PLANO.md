@@ -466,6 +466,17 @@ Servidores MCP cadastrados uma vez em `~/.config/bando/mcp.toml` e entregues a q
 - Filtros: `agents` (só alguns agentes) e `projects` (só alguns projetos); `enabled = false` desliga.
 - Próximos passos: ligar/desligar por sessão na tela, presets de servidores comuns no catálogo, Qwen Code (fork do Gemini).
 
+## 18.1 Compressão opcional
+
+Compressor é um proxy local que encolhe o que o agente manda ao modelo. O catálogo (`catalog/compressors.toml`) traz o Headroom.
+
+- **Opcional e por sessão.** A sessão guarda o ID do compressor (coluna `compressor`); vazio é o padrão. Liga em `bando new --compressor <id>` ou no campo Compressão da nova sessão. O app lembra a última escolha.
+- **Sem daemon.** O `bando run` escolhe uma porta livre, inicia o proxy antes do agente e o encerra quando o agente sai. Se o tmux for encerrado, o supervisor recebe SIGHUP e leva o proxy junto (SIGTERM e, se ele não sair em 3 s, SIGKILL). A única espera é na subida, até a porta abrir (máximo 30 s).
+- **Config, não código.** O catálogo diz, por agente, onde fica a URL do provider (`url_env` no Claude Code, `url_arg` no Codex). O Bando troca essa URL pela do proxy e passa a original ao proxy como destino. Sem provider, o proxy usa o destino padrão dele.
+- **Segredos.** A chave do provider continua só no ambiente do agente e segue no pedido até o proxy em 127.0.0.1. O proxy não recebe chave por argumento nem por ambiente.
+- **Medido em 13/11/2026** (Headroom 0.44.0, tarefa com trechos de log de 150 linhas): Codex 0.167 + Venice, 103.647 para 76.179 tokens no último pedido (27%); Claude Code 2.1 pela assinatura, 46.367 para 34.617 (25%). JSON cortado pelo Codex e a base fixa do agente não mudam.
+- Pendente: `~/.config/bando/compressors.toml` do usuário, ligar e desligar numa sessão existente, mostrar a economia na tela de uso.
+
 ## 19. Custo: fonte de verdade
 
 - O transcript do agente é a fonte de verdade. Registros importados de outras ferramentas só valem para sessões sem transcript e são removidos quando a resposta equivalente aparece num transcript (mesmo horário ±2 s e mesma saída). Verificado contra a soma direta dos transcripts: sem dupla contagem (resíduo de cerca de 0,1%).

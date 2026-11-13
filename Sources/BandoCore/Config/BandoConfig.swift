@@ -12,6 +12,7 @@ public struct BandoConfig: Sendable {
     public var providers: [String: ProviderDefinition]
     public var themes: [String: ThemeDefinition] = [:]
     public var mcp: [String: McpServer] = [:]
+    public var compressors: [String: CompressorDefinition] = [:]
     /// Entradas puladas por erro, para mostrar na tela e no `bando doctor`.
     public var issues: [ConfigIssue] = []
     /// IDs que aparecem no arquivo do usuário (adicionados ou personalizados).
@@ -47,6 +48,19 @@ public struct BandoConfig: Sendable {
     public func provider(_ id: String) throws -> ProviderDefinition {
         guard let p = providers[id] else { throw ConfigError.unknownProvider(id) }
         return p
+    }
+
+    public func compressor(_ id: String) throws -> CompressorDefinition {
+        guard let c = compressors[id] else { throw ConfigError.unknownCompressor(id) }
+        return c
+    }
+
+    public var sortedCompressors: [CompressorDefinition] {
+        compressors.values.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    public func compressors(for agent: String) -> [CompressorDefinition] {
+        sortedCompressors.filter { $0.supports(agent: agent) }
     }
 
     public func providers(for agent: String) -> [ProviderDefinition] {
@@ -150,7 +164,15 @@ public struct BandoConfig: Sendable {
             }
         }
 
+        let presetCompressors = try decode(CompressorsFile.self, Presets.compressors, file: "presets/compressors.toml").compressors ?? [:]
+        var compressors: [String: CompressorDefinition] = [:]
+        for (id, entry) in presetCompressors.sorted(by: { $0.key < $1.key }) where entry.enabled != false {
+            do { compressors[id] = try entry.resolved(id: id) }
+            catch { issues.append(ConfigIssue(section: "compressors.\(id)", message: error.localizedDescription, origin: .preset)) }
+        }
+
         var config = BandoConfig(agents: agents, providers: providers)
+        config.compressors = compressors
         config.mcp = mcp
         config.themes = themes
         config.userThemeIds = Set(userT.keys)

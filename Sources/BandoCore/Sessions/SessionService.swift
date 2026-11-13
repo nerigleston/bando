@@ -66,15 +66,19 @@ public final class SessionService: @unchecked Sendable {
         public var baseBranch: String?
         public var useWorktree: Bool
         public var dependsOn: String?
+        /// Compressor opcional (ID do catálogo).
+        public var compressor: String?
         /// false: só cria (quem chama inicia de outro jeito, ex.: fork).
         public var startNow: Bool
 
         public init(project: Project, prompt: String?, name: String? = nil, agent: String, provider: String? = nil,
                     model: String? = nil, branch: String? = nil, baseBranch: String? = nil,
-                    useWorktree: Bool = true, dependsOn: String? = nil, startNow: Bool = true) {
+                    useWorktree: Bool = true, dependsOn: String? = nil, startNow: Bool = true,
+                    compressor: String? = nil) {
             self.project = project; self.prompt = prompt; self.name = name; self.agent = agent
             self.provider = provider; self.model = model; self.branch = branch; self.baseBranch = baseBranch
             self.useWorktree = useWorktree; self.dependsOn = dependsOn; self.startNow = startNow
+            self.compressor = compressor
         }
     }
 
@@ -86,6 +90,11 @@ public final class SessionService: @unchecked Sendable {
             let provider = try config.provider(p)
             guard provider.supports(agent: agent.id) else {
                 throw ConfigError.providerNotForAgent(provider: provider.id, agent: agent.id)
+            }
+        }
+        if let c = req.compressor {
+            guard try config.compressor(c).supports(agent: agent.id) else {
+                throw ConfigError.compressorNotForAgent(compressor: c, agent: agent.id)
             }
         }
         let parent = try req.dependsOn.map { try store.findSession($0) }
@@ -122,6 +131,7 @@ public final class SessionService: @unchecked Sendable {
             status: waiting ? .queued : .starting, dependsOn: parent?.id
         )
         session.customName = req.name != nil
+        session.compressor = req.compressor
         try store.pool.write { db in
             try session.insert(db)
             var e = SessionEvent(sessionId: id, kind: "created", status: session.status)
@@ -335,6 +345,8 @@ public final class SessionService: @unchecked Sendable {
         try update(s.id) {
             $0.agent = newAgent.id
             $0.provider = provider
+            // O compressor só continua se servir para o agente novo.
+            if let c = $0.compressor, config.compressors[c]?.supports(agent: newAgent.id) != true { $0.compressor = nil }
             $0.model = model
             if !sameAgent { $0.nativeId = nil }
             // Sessão adotada do Xirp passa a rodar no servidor do Bando.
@@ -443,7 +455,7 @@ public final class SessionService: @unchecked Sendable {
         let forked = try create(NewSession(
             project: project, prompt: nil, name: "Fork de \(s.name)", agent: s.agent,
             provider: s.provider, model: s.model, baseBranch: s.branch ?? s.baseBranch,
-            useWorktree: s.usesWorktree, startNow: false
+            useWorktree: s.usesWorktree, startNow: false, compressor: s.compressor
         ))
         if let native = s.nativeId {
             try start(forked, mode: .fork(native))
@@ -593,7 +605,8 @@ public final class SessionService: @unchecked Sendable {
         let plan = try LaunchPlan.build(LaunchRequest(
             agent: agent, provider: provider, model: s.model,
             prompt: promptOverride ?? (mode == .fresh ? s.prompt : nil), mode: mode, sessionId: s.id,
-            worktree: s.worktreePath, branch: s.branch, newNativeId: newId, hookArgs: hookArgs, mcp: mcp
+            worktree: s.worktreePath, branch: s.branch, newNativeId: newId, hookArgs: hookArgs, mcp: mcp,
+            compressor: try s.compressor.map { try config.compressor($0) }
         ))
         return (plan, agent, newId)
     }
