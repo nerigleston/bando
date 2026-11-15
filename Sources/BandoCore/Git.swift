@@ -33,6 +33,11 @@ public struct Git: Sendable {
         return r.trimmed
     }
 
+    /// O repositório já tem pelo menos um commit (HEAD aponta para algo).
+    public func hasCommits(_ repo: String) -> Bool {
+        (try? Shell.run(executable, ["rev-parse", "--verify", "--quiet", "HEAD"], cwd: repo))?.ok ?? false
+    }
+
     public func branchExists(_ repo: String, _ branch: String) -> Bool {
         (try? Shell.run(executable, ["show-ref", "--verify", "--quiet", "refs/heads/\(branch)"], cwd: repo))?.ok ?? false
     }

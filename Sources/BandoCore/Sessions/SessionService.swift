@@ -111,7 +111,10 @@ public final class SessionService: @unchecked Sendable {
         var base: String? = nil
         // Pasta sem git (como o "Geral"): a sessão roda direto nela, sem worktree.
         let isRepo = (try? Git())?.repositoryRoot(of: req.project.path) != nil
-        let useWorktree = req.useWorktree && isRepo
+        // Repositório sem nenhum commit (git init recém-feito) não tem de onde
+        // tirar um worktree: a sessão roda direto na pasta, como fora do git.
+        let hasCommits = isRepo && ((try? Git())?.hasCommits(req.project.path) ?? false)
+        let useWorktree = req.useWorktree && hasCommits
         if useWorktree {
             let git = try Git()
             branch = req.branch ?? "bando/\(slug)"

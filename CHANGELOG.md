@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.1.41
+
+- Projeto com `git init` e nenhum commit abre sessão normalmente: ela roda direto na pasta, sem worktree, como fora do git. Antes falhava com "invalid reference: master". Depois do primeiro commit, as sessões novas voltam a ganhar worktree e branch próprios.
+
 ## 0.1.40
 
 - NVIDIA NIM no OpenCode usa o modelo escolhido. Faltava o prefixo `nvidia/` que o OpenCode exige no nome; sem ele o OpenCode voltava para o último modelo usado (de outro provider). Modelo da lista do provider sempre leva o prefixo, mesmo que já comece com ele (`nvidia/nvidia/nemotron-...`).

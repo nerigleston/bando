@@ -254,4 +254,16 @@ struct SessionServiceTests {
         service.renameAutoBranch(s.id, title: "Outro título")
         #expect(try service.store.session(s.id)?.branch == "bando/novo-robo-veniti-\(id4)")
     }
+
+    @Test("repositório sem commit: a sessão roda na pasta, sem worktree, em vez de falhar")
+    func repoWithoutCommits() throws {
+        let repo = try folder("sem-commit")
+        try git(["init", "-q", "-b", "master"], in: repo)
+        try "x\n".write(to: repo.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
+        try git(["add", "."], in: repo)
+        let project = try service.ensureProject(at: repo.path)
+        let s = try service.create(.init(project: project, prompt: "primeira tarefa", agent: "shell", startNow: false))
+        #expect(s.usesWorktree == false)
+        #expect(s.worktreePath == project.path)
+    }
 }
