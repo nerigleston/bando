@@ -77,7 +77,11 @@ public struct LaunchPlan: Sendable, Equatable {
         var values: [String: String] = [:]
         // O agente pode exigir o provider no nome do modelo ("ollama/qwen3").
         var model = req.model.flatMap { $0.isEmpty ? nil : $0 }
-        if let m = model, let prefix = providerSettings?.modelPrefix, !m.hasPrefix(prefix) { model = prefix + m }
+        // Modelo da lista do provider sempre leva o prefixo, mesmo que já comece
+        // com ele ("nvidia/nemotron-..." vira "nvidia/nvidia/nemotron-..."). Fora
+        // da lista, só se ainda não tiver (quem digitou o nome completo).
+        if let m = model, let prefix = providerSettings?.modelPrefix,
+           (req.provider?.models.contains(m) ?? false) || !m.hasPrefix(prefix) { model = prefix + m }
         values["model"] = model
         values["session_id"] = req.sessionId
         values["worktree"] = req.worktree

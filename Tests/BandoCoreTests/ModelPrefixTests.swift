@@ -75,4 +75,17 @@ struct ModelPrefixTests {
         ))
         #expect(try json(plan.env["OPENCODE_CONFIG_CONTENT"])["model"] as? String == "meu-ollama/qwen3.5")
     }
+
+    @Test("OpenCode com NVIDIA: provider na frente, inclusive no Nemotron que já começa com nvidia/")
+    func openCodeNvidia() throws {
+        func model(_ m: String) throws -> String? {
+            let plan = try LaunchPlan.build(LaunchRequest(
+                agent: config.agent("opencode"), provider: config.provider("nvidia"), model: m))
+            return try json(plan.env["OPENCODE_CONFIG_CONTENT"])["model"] as? String
+        }
+        #expect(try model("deepseek-ai/deepseek-v4.1-flash") == "nvidia/deepseek-ai/deepseek-v4.1-flash")
+        #expect(try model("nvidia/nemotron-3-ultra-550b-a55b") == "nvidia/nvidia/nemotron-3-ultra-550b-a55b")
+        // Digitado já no formato do OpenCode: fica como está.
+        #expect(try model("nvidia/deepseek-ai/deepseek-v4.1-flash") == "nvidia/deepseek-ai/deepseek-v4.1-flash")
+    }
 }

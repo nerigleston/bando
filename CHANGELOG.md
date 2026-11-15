@@ -1,5 +1,10 @@
 # Mudanças
 
+## 0.1.40
+
+- NVIDIA NIM no OpenCode usa o modelo escolhido. Faltava o prefixo `nvidia/` que o OpenCode exige no nome; sem ele o OpenCode voltava para o último modelo usado (de outro provider). Modelo da lista do provider sempre leva o prefixo, mesmo que já comece com ele (`nvidia/nvidia/nemotron-...`).
+- Lista de modelos da NVIDIA atualizada com os IDs da API hospedada: DeepSeek V4.1 Flash (padrão), MiniMax M3.1 Flash, GLM 5.3 Flash, Kimi K2.6, Mistral Large 4, Nemotron 3 Ultra, Step 5 Preview e Laguna XS 2.1.
+
 ## 0.1.39
 
 - OpenCode recebe o modelo da sessão. A versão 2 não tem `--model` na tela interativa e usava sempre o modelo do `opencode.json`. Agora o Bando passa o modelo em `OPENCODE_CONFIG_CONTENT` e abre o OpenCode com `--standalone`: o servidor compartilhado dele ignorava essa variável, inclusive os servidores MCP do Bando, que também vão nela.

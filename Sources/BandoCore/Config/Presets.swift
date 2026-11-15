@@ -1354,14 +1354,21 @@ public enum Presets {
     env = { OPENAI_API_KEY = "keychain:bando/chutes", OPENAI_BASE_URL = "https://llm.chutes.ai/v1" }
 
 
-    # Fonte: https://models.dev/api.json (nvidia)  | verificado: parcial
+    # Fonte: https://models.dev/api.json (nvidia) ; GET https://integrate.api.nvidia.com/v1/models (14/11/2026)  | verificado: parcial
     # NVIDIA também documenta Claude Code com NIM self-hosted (docs.nvidia.com/nim/.../claude-code.html), não com a API hospedada.
+    # Sem Responses API (POST /v1/responses = 404, 14/11/2026) => sem Codex. /v1/messages responde no formato Anthropic,
+    # mas sem chave não deu para confirmar se aceita os modelos => sem Claude Code por enquanto.
+    # IDs conferidos na lista da API; kimi-k3.1-pro aparece no site mas não na API hospedada (lá só kimi-k2.6).
     [providers.nvidia]
     name   = "NVIDIA NIM (build.nvidia.com)"
-    models = ["z-ai/glm-5.3", "minimaxai/minimax-m3.1-flash"]
+    models = ["deepseek-ai/deepseek-v4.1-flash", "minimaxai/minimax-m3.1-flash", "z-ai/glm-5.3-flash", "moonshotai/kimi-k2.6", "mistralai/mistral-large-4-1t-a52b", "nvidia/nemotron-3-ultra-550b-a55b", "stepfun-ai/step-5-preview", "poolside/laguna-xs-2.1"]
 
+    # OpenCode: o nome do modelo leva o provider na frente ("nvidia/deepseek-ai/deepseek-v4.1-flash";
+    # o Nemotron fica "nvidia/nvidia/nemotron-..."). Sem isso o OpenCode não acha o provider e
+    # volta para o último modelo que usou. mistral-large-4 não está no models.dev: no OpenCode pode não abrir.
     [providers.nvidia.for.opencode]
     env = { NVIDIA_API_KEY = "keychain:bando/nvidia" }
+    model_prefix = "nvidia/"
 
     [providers.nvidia.for.qwen]
     env = { OPENAI_API_KEY = "keychain:bando/nvidia", OPENAI_BASE_URL = "https://integrate.api.nvidia.com/v1" }
