@@ -12,6 +12,8 @@ public enum ConfigError: Error, Equatable, LocalizedError {
     case unknownCompressor(String)
     case compressorNotForAgent(compressor: String, agent: String)
     case compressorBlocked(compressor: String, variable: String)
+    case unknownTeam(String)
+    case unknownRole(team: String, role: String)
 
     public var errorDescription: String? {
         switch self {
@@ -37,6 +39,10 @@ public enum ConfigError: Error, Equatable, LocalizedError {
             "O compressor \(c) não tem configuração para o agente \(a)"
         case .compressorBlocked(let c, let v):
             "O compressor \(c) não funciona com este provider (variável \(v))"
+        case .unknownTeam(let id):
+            "Equipe desconhecida: \(id)"
+        case .unknownRole(let team, let role):
+            "Papel desconhecido em teams.\(team): \(role)"
         }
     }
 }

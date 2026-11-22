@@ -68,6 +68,8 @@ public struct AgentDefinition: Sendable, Equatable {
     /// Agente que recebe o modelo dentro de um JSON de configuração numa
     /// variável de ambiente, em vez de argumento (ex.: OpenCode v2).
     public var modelConfig: ModelConfigTarget? = nil
+    /// Sugestões de modelos quando o provider é a conta do próprio agente.
+    public var models: [String] = []
 }
 
 /// Forma "parcial" lida do TOML. Tudo opcional para permitir que o arquivo do
@@ -100,10 +102,11 @@ struct AgentEntry: Codable, Sendable {
     var terminalTitle: String?
     var trust: TrustAdapter?
     var modelConfig: ModelConfigTarget?
+    var models: [String]?
 
     enum CodingKeys: String, CodingKey {
         case name, cmd, prompt, fresh, fork, resume, `continue`, model, args, env, status
-        case hooks, busy, waiting, version, install, update, enabled, mcp, title, trust
+        case hooks, busy, waiting, version, install, update, enabled, mcp, title, trust, models
         case titleModel = "title_model"
         case terminalTitle = "terminal_title"
         case idleAfter = "idle_after"
@@ -141,7 +144,8 @@ struct AgentEntry: Codable, Sendable {
             titleModel: o.titleModel ?? titleModel,
             terminalTitle: o.terminalTitle ?? terminalTitle,
             trust: o.trust ?? trust,
-            modelConfig: o.modelConfig ?? modelConfig
+            modelConfig: o.modelConfig ?? modelConfig,
+            models: o.models ?? models
         )
     }
 
@@ -189,7 +193,8 @@ struct AgentEntry: Codable, Sendable {
             titleModel: titleModel,
             terminalTitle: terminalTitle,
             trust: trust,
-            modelConfig: modelConfig
+            modelConfig: modelConfig,
+            models: models ?? []
         )
     }
 }

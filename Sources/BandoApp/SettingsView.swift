@@ -137,10 +137,20 @@ struct ProvidersSettings: View {
             List {
                 ForEach(providers, id: \.id) { p in
                     HStack {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(p.name)
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(model.connectionState(for: p.id) == .connected ? Color.green : Color.secondary.opacity(0.35))
+                                    .frame(width: 7, height: 7)
+                                Text(p.name)
+                            }
+                            let models = model.modelOptions(for: "", providerId: p.id)
                             Text(p.supportedAgents.isEmpty ? "todos os agentes" : p.supportedAgents.joined(separator: ", "))
                                 .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            if model.connectionState(for: p.id) == .connected && !models.isEmpty {
+                                Text("Modelos: " + models.joined(separator: ", "))
+                                    .font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+                            }
                         }
                         Spacer()
                         if let refs = keychainRefs(p).first {
@@ -203,6 +213,7 @@ struct ProvidersSettings: View {
             }
         }
         keyState = state
+        model.refreshProviders()
     }
 
     func save(_ p: ProviderDefinition) {
@@ -312,6 +323,7 @@ struct McpSettings: View {
             }
         }
         keyState = state
+        model.refreshProviders()
     }
 }
 

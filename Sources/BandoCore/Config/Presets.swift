@@ -2105,4 +2105,139 @@ public enum Presets {
     upstream       = ["--openai-api-url", "{upstream}"]
     upstream_strip = "/v1"
     """###
+
+    public static let teams = ###"""
+    # Catálogo de equipes do Bando.
+    #
+    # Templates reutilizáveis para o Modo Orquestrador Multi-Agente.
+    # Personalizações ficam em ~/.config/bando/teams.toml ou em .bando/teams.toml
+    # dentro de cada projeto.
+
+    [teams.feature-completa]
+    name = "Feature completa"
+    description = "Orquestrador coordena implementação e revisão com agentes e providers livres."
+
+    [teams.feature-completa.roles.orchestrator]
+    name = "Orquestrador"
+    is_orchestrator = true
+    worktree = "isolated"
+    auto_start = true
+    canvas_x = 100
+    canvas_y = 200
+    responsibilities = "Planejar a arquitetura da tarefa, dividir subtarefas, delegar aos especialistas da equipe e consolidar o resultado final."
+
+    [teams.feature-completa.roles.implementer]
+    name = "Implementador"
+    worktree = "shared"
+    share_worktree_with = "orchestrator"
+    auto_start = false
+    canvas_x = 480
+    canvas_y = 100
+    responsibilities = "Implementar as mudanças de código solicitadas pelo orquestrador seguindo os padrões do repositório."
+
+    [teams.feature-completa.roles.reviewer]
+    name = "Revisor"
+    worktree = "isolated"
+    auto_start = false
+    canvas_x = 480
+    canvas_y = 320
+    responsibilities = "Revisar código, rodar testes, apontar regressões, falhas de segurança e sugerir melhorias."
+
+    [[teams.feature-completa.edges]]
+    from = "orchestrator"
+    to = "implementer"
+    kind = "delegate"
+
+    [[teams.feature-completa.edges]]
+    from = "orchestrator"
+    to = "reviewer"
+    kind = "delegate"
+
+    [[teams.feature-completa.edges]]
+    from = "implementer"
+    to = "reviewer"
+    kind = "handoff"
+
+    [teams.revisao-paralela]
+    name = "Revisão em paralelo"
+    description = "Coordenador dispara especialistas em segurança e testes em paralelo."
+
+    [teams.revisao-paralela.roles.coordinator]
+    name = "Coordenador"
+    is_orchestrator = true
+    worktree = "isolated"
+    auto_start = true
+    canvas_x = 100
+    canvas_y = 200
+    responsibilities = "Coordenar a análise do código e consolidar os achados dos revisores."
+
+    [teams.revisao-paralela.roles.security]
+    name = "Segurança"
+    worktree = "shared"
+    share_worktree_with = "coordinator"
+    auto_start = true
+    canvas_x = 480
+    canvas_y = 100
+    responsibilities = "Auditar vulnerabilidades, exposição de segredos, permissões e validação de entrada."
+
+    [teams.revisao-paralela.roles.tests]
+    name = "Testes"
+    worktree = "shared"
+    share_worktree_with = "coordinator"
+    auto_start = true
+    canvas_x = 480
+    canvas_y = 320
+    responsibilities = "Verificar cobertura de testes, casos de borda e escrever testes automatizados faltantes."
+
+    [[teams.revisao-paralela.edges]]
+    from = "coordinator"
+    to = "security"
+    kind = "delegate"
+
+    [[teams.revisao-paralela.edges]]
+    from = "coordinator"
+    to = "tests"
+    kind = "delegate"
+
+    [teams.pipeline-sequencial]
+    name = "Pipeline sequencial"
+    description = "Planejador entrega para Desenvolvedor, que repassa para QA em sequência."
+
+    [teams.pipeline-sequencial.roles.planner]
+    name = "Planejador"
+    is_orchestrator = true
+    worktree = "isolated"
+    auto_start = true
+    canvas_x = 80
+    canvas_y = 200
+    responsibilities = "Investigar o código-fonte, mapear arquivos impactados e escrever um plano objetivo para implementação."
+
+    [teams.pipeline-sequencial.roles.coder]
+    name = "Desenvolvedor"
+    worktree = "shared"
+    share_worktree_with = "planner"
+    auto_start = true
+    canvas_x = 440
+    canvas_y = 200
+    responsibilities = "Executar a implementação conforme o plano recebido e validar compilação."
+
+    [teams.pipeline-sequencial.roles.qa]
+    name = "QA"
+    worktree = "shared"
+    share_worktree_with = "planner"
+    auto_start = true
+    canvas_x = 800
+    canvas_y = 200
+    responsibilities = "Escrever e rodar testes para validar a implementação e confirmar que não há regressões."
+
+    [[teams.pipeline-sequencial.edges]]
+    from = "planner"
+    to = "coder"
+    kind = "handoff"
+
+    [[teams.pipeline-sequencial.edges]]
+    from = "coder"
+    to = "qa"
+    kind = "handoff"
+    """###
 }

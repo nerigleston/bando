@@ -19,8 +19,8 @@ public struct Tmux: Sendable {
     public var serverArgs: [String] { server == "default" ? [] : ["-L", server] }
 
     @discardableResult
-    func tmux(_ args: [String]) throws -> Shell.Result {
-        try Shell.run(executable, serverArgs + args)
+    func tmux(_ args: [String], input: String? = nil) throws -> Shell.Result {
+        try Shell.run(executable, serverArgs + args, input: input)
     }
 
     public func hasSession(_ name: String) -> Bool {
@@ -71,16 +71,70 @@ public struct Tmux: Sendable {
         _ = try tmux(["kill-session", "-t", "=\(name)"])
     }
 
-    /// Digita texto literal e, se pedido, Enter.
+    /// Digita texto literal (ou colagem com bracketed paste para instruções multilinhas) e, se pedido, Enter.
     public func send(_ name: String, text: String, enter: Bool = true) throws {
-        let r = try tmux(["send-keys", "-t", "=\(name):", "-l", text])
-        guard r.ok else { throw BandoError.command("tmux send-keys", r.stderr) }
-        // Texto digitado de uma vez parece "colado" para algumas CLIs (Codex),
-        // e um Enter imediato vira quebra de linha. Uma pausa curta resolve.
-        if enter {
-            Thread.sleep(forTimeInterval: 0.25)
-            _ = try tmux(["send-keys", "-t", "=\(name):", "Enter"])
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let payload = trimmed.isEmpty ? text : trimmed
+        let usePaste = payload.contains("\n") || payload.contains("\r") || payload.count > 120
+
+        if usePaste {
+            let bufferName = "bando-\(UUID().uuidString.prefix(8))"
+            let load = try tmux(["load-buffer", "-b", bufferName, "-"], input: payload)
+            guard load.ok else { throw BandoError.command("tmux load-buffer", load.stderr) }
+            let paste = try tmux(["paste-buffer", "-d", "-p", "-b", bufferName, "-t", "=\(name):"])
+            if !paste.ok {
+                _ = try? tmux(["delete-buffer", "-b", bufferName])
+                throw BandoError.command("tmux paste-buffer", paste.stderr)
+            }
+        } else {
+            let r = try tmux(["send-keys", "-t", "=\(name):", "-l", payload])
+            guard r.ok else { throw BandoError.command("tmux send-keys", r.stderr) }
         }
+        // CLIs como Codex e Antigravity têm janela pós-paste (~500 ms) em que Enter
+        // vira quebra de linha dentro do composer em vez de enviar o prompt.
+        if enter {
+            let settleDelay = usePaste ? 0.85 : (payload.count > 40 ? 0.5 : 0.25)
+            Thread.sleep(forTimeInterval: settleDelay)
+            _ = try tmux(["send-keys", "-t", "=\(name):", "Enter"])
+
+            if usePaste {
+                for _ in 0..<2 {
+                    Thread.sleep(forTimeInterval: 0.45)
+                    let screen = capture("=\(name):", lines: 14)
+                    if Self.shouldRetrySubmit(prompt: payload, captured: screen) {
+                        Thread.sleep(forTimeInterval: 0.35)
+                        _ = try tmux(["send-keys", "-t", "=\(name):", "Enter"])
+                    } else {
+                        break
+                    }
+                }
+            }
+        }
+    }
+
+    /// Verifica se um prompt longo ainda ficou preso dentro da caixa de entrada sem enviar.
+    static func shouldRetrySubmit(prompt: String, captured: String) -> Bool {
+        let promptLines = prompt
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard let lastPromptLine = promptLines.last else { return false }
+        let anchor = String(lastPromptLine.suffix(24)).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard anchor.count >= 6 else { return false }
+
+        let lines = captured
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard let idx = lines.lastIndex(where: { $0.contains(anchor) }) else { return false }
+
+        let trailing = lines[(idx + 1)...]
+        guard trailing.count <= 3 else { return false }
+        let activeMarkers = ["Working", "esc to interrupt", "Thinking", "Cogitat", "Ask Codex"]
+        if trailing.contains(where: { line in activeMarkers.contains(where: { line.contains($0) }) }) {
+            return false
+        }
+        return true
     }
 
     /// Texto visível no painel (sem cores).

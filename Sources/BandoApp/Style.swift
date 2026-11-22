@@ -394,6 +394,7 @@ struct SelectField<T: Hashable>: View {
     @Binding var selection: T
     let options: [(value: T, label: String)]
     var placeholder = "Escolha…"
+    var height: CGFloat = 30
 
     var body: some View {
         Menu {
@@ -411,7 +412,7 @@ struct SelectField<T: Hashable>: View {
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
-        .fieldBox()
+        .fieldBox(height: height)
         .pointerCursor()
     }
 }
@@ -423,5 +424,121 @@ struct PopoverLabel: View {
     init(_ text: String) { self.text = text }
     var body: some View {
         Text(text).font(.system(size: 11, weight: .medium)).foregroundStyle(p.tertiary)
+    }
+}
+
+/// Seletor de provider que destaca os conectados (chave salva / servidor local / conta nativa).
+struct ProviderField: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var p
+    let agentId: String
+    @Binding var selection: String
+    var height: CGFloat = 30
+
+    var body: some View {
+        let options = model.providerOptions(for: agentId)
+        let connected = options.filter { $0.state == .connected }
+        let others = options.filter { $0.state != .connected }
+        let current = options.first { $0.provider.id == selection }
+        let currentLabel = current?.provider.name ?? (selection == "default" ? "Conta do agente" : selection)
+
+        Menu {
+            if !connected.isEmpty {
+                Section("Conectados") {
+                    ForEach(connected, id: \.provider.id) { item in
+                        Button {
+                            selection = item.provider.id
+                        } label: {
+                            let models = model.modelOptions(for: agentId, providerId: item.provider.id)
+                            let suffix = models.isEmpty ? "" : " (\(models.count) modelos)"
+                            Label(item.provider.name + suffix,
+                                  systemImage: item.provider.id == selection ? "checkmark" : (item.provider.id == "default" ? "person.crop.circle" : "checkmark.circle.fill"))
+                        }
+                    }
+                }
+            }
+            if !others.isEmpty {
+                Section("Outros providers") {
+                    ForEach(others, id: \.provider.id) { item in
+                        Button {
+                            selection = item.provider.id
+                        } label: {
+                            Label("\(item.provider.name) (\(item.state.label))",
+                                  systemImage: item.provider.id == selection ? "checkmark" : "circle")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(current?.state == .connected ? StateColor.working : p.tertiary.opacity(0.5))
+                    .frame(width: 6, height: 6)
+                Text(currentLabel)
+                    .foregroundStyle(p.text)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(p.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fieldBox(height: height)
+        .pointerCursor()
+    }
+}
+
+/// Campo de modelo editável com menu suspenso da lista de modelos do provider.
+struct ModelField: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var p
+    let agentId: String
+    let providerId: String
+    @Binding var text: String
+    var placeholder: String = "padrão"
+    var height: CGFloat = 30
+
+    var body: some View {
+        let models = model.modelOptions(for: agentId, providerId: providerId)
+        HStack(spacing: 4) {
+            TextField(models.first ?? placeholder, text: $text)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+            if !models.isEmpty {
+                Menu {
+                    Button {
+                        text = ""
+                    } label: {
+                        Label("Padrão (\(models.first ?? "CLI"))", systemImage: text.isEmpty ? "checkmark" : "")
+                    }
+                    Divider()
+                    ForEach(models, id: \.self) { m in
+                        Button {
+                            text = m
+                        } label: {
+                            Label(m, systemImage: text == m ? "checkmark" : "")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundStyle(p.secondary)
+                        .frame(width: 20, height: height - 6)
+                        .contentShape(Rectangle())
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .pointerCursor()
+                .help("Escolher modelo de \(model.config?.providers[providerId]?.name ?? providerId)")
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(height: height)
+        .background(RoundedRectangle(cornerRadius: 6).fill(p.panel.opacity(0.6)))
+        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(p.border.opacity(2)))
     }
 }

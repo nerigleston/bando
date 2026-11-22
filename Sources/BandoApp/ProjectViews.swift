@@ -137,8 +137,24 @@ struct Composer: View {
 
     var options: some View {
         Form {
-            Picker("Provider", selection: $provider) { ForEach(providers) { Text($0.name).tag($0.id) } }
-            TextField("Modelo", text: $modelName, prompt: Text("padrão da CLI"))
+            Picker("Provider", selection: $provider) {
+                ForEach(model.providerOptions(for: agent), id: \.provider.id) { item in
+                    let tag = item.provider.id == "default" ? "" : " · \(item.state.label)"
+                    Text(item.provider.name + tag).tag(item.provider.id)
+                }
+            }
+            let suggestions = model.modelOptions(for: agent, providerId: provider)
+            HStack(spacing: 4) {
+                TextField("Modelo", text: $modelName, prompt: Text(suggestions.first ?? "padrão da CLI"))
+                if !suggestions.isEmpty {
+                    Menu {
+                        Button("Padrão") { modelName = "" }
+                        Divider()
+                        ForEach(suggestions, id: \.self) { m in Button(m) { modelName = m } }
+                    } label: { Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)) }
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                }
+            }
             if !compressors.isEmpty {
                 Picker("Compressão", selection: $compressor) {
                     Text("Sem compressão").tag("")

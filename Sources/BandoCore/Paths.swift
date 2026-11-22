@@ -36,7 +36,13 @@ public struct BandoPaths: Sendable {
     public var providersFile: URL { configDir.appendingPathComponent("providers.toml") }
     public var themesFile: URL { configDir.appendingPathComponent("themes.toml") }
     public var mcpFile: URL { configDir.appendingPathComponent("mcp.toml") }
+    public var teamsFile: URL { configDir.appendingPathComponent("teams.toml") }
     public var database: URL { stateDir.appendingPathComponent("bando.sqlite") }
+
+    /// Arquivo de templates de equipe próprio de um projeto (`<repo>/.bando/teams.toml`).
+    public static func projectTeamsFile(for repoPath: String) -> URL {
+        URL(fileURLWithPath: repoPath).appendingPathComponent(".bando").appendingPathComponent("teams.toml")
+    }
     /// JSONL do compressor da sessão: uma linha por pedido, só contagens de tokens.
     public func compressorStatsFile(sessionId: String) -> URL {
         stateDir.appendingPathComponent("run").appendingPathComponent("\(sessionId).compressor.jsonl")

@@ -31,6 +31,7 @@ struct BandoApp: App {
             }
             CommandGroup(replacing: .newItem) {
                 Button("Nova sessão") { model.openComposer() }.keyboardShortcut("n")
+                Button("Nova equipe…") { model.showNewTeam = true }.keyboardShortcut("t", modifiers: [.command, .shift])
                 Button("Adicionar projeto…") { model.showAddProject = true }.keyboardShortcut("o")
                 Button("Importar workspace…") { model.showImportWorkspace = true }
             }
@@ -64,6 +65,8 @@ struct BandoApp: App {
             CommandGroup(after: .toolbar) {
                 Button(model.gridMode ? "Mostrar uma sessão" : "Mostrar grade") { model.toggleGrid() }
                     .keyboardShortcut("g", modifiers: [.command, .option])
+                Button("Canvas da equipe") { model.toggleCanvas() }
+                    .keyboardShortcut("c", modifiers: [.command, .option])
                 ForEach(Array(GridPreset.all.enumerated()), id: \.element) { i, g in
                     Button("Grade \(g.label)") { model.setGrid(cols: g.cols, rows: g.rows) }
                         .keyboardShortcut(KeyEquivalent(Character("\(i + 1)")), modifiers: [.command, .option])

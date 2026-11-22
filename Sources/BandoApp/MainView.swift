@@ -37,6 +37,7 @@ struct MainView: View {
         .sheet(item: $model.renaming) { RenameSheet(session: $0).environment(model).environment(\.palette, p) }
         .sheet(isPresented: $model.showAddProject) { AddProjectSheet().environment(model).environment(\.palette, p) }
         .sheet(isPresented: $model.showImportWorkspace) { ImportWorkspaceSheet().environment(model).environment(\.palette, p) }
+        .sheet(isPresented: $model.showNewTeam) { NewTeamSheet().environment(model).environment(\.palette, p) }
         .animation(.easeOut(duration: 0.2), value: model.showSidebar)
     }
 }
@@ -150,6 +151,7 @@ struct TrailingItems: View {
                 .tooltip("Ir para a próxima sessão esperando você (⌘J)")
             }
             LayoutMenu()
+            CanvasToggleButton()
             IconButton(symbol: "sidebar.right", help: "Detalhes da sessão (⌥⌘I)", size: 16) { model.showInspector.toggle() }
             ReportsButtons()
             HelpMenu()
@@ -161,6 +163,33 @@ struct TrailingItems: View {
             .tooltip("Ajustes (⌘,)")
         }
         .environment(\.palette, p)
+    }
+}
+
+struct CanvasToggleButton: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var p
+
+    var isCanvas: Bool {
+        if case .canvas = model.route { return true }
+        return false
+    }
+
+    var body: some View {
+        Button { model.toggleCanvas() } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "point.3.connected.trianglepath.dotted").font(.system(size: 14))
+                if !model.teams.isEmpty {
+                    Text("\(model.teams.count)").font(.system(size: 11, weight: .medium, design: .monospaced))
+                }
+            }
+            .foregroundStyle(isCanvas ? p.accent : p.secondary)
+            .frame(height: 28).padding(.horizontal, 7)
+            .background(RoundedRectangle(cornerRadius: 6).fill(isCanvas ? p.accent.opacity(0.12) : .clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).pointerCursor()
+        .tooltip("Canvas da Equipe multi-agente (⌥⌘C)")
     }
 }
 
@@ -306,6 +335,7 @@ struct ShortcutsSheet: View {
                      ("⌘F", "Buscar no arquivo aberto"), ("clique duplo", "Abrir só a sessão (na grade)")]),
         ("Grade", [("⌥⌘G", "Alternar grade"), ("⌥⌘1 … ⌥⌘7", "Grade 1×1 até 4×4"),
                    ("arrastar divisória", "Ajustar tamanho"), ("clique duplo na divisória", "Igualar tamanhos")]),
+        ("Equipes e Canvas", [("⌥⌘C", "Abrir ou fechar Canvas da Equipe"), ("⇧⌘T", "Nova equipe multi-agente")]),
         ("Janelas", [("⇧⌘U", "Uso e custo"), ("⌥⌘R", "Relatórios")]),
         ("Janela", [("⌃⌘S", "Mostrar ou esconder a lateral"), ("⌥⌘I", "Detalhes da sessão"),
                     ("⌘+ / ⌘−", "Fonte do terminal"), ("⌘,", "Ajustes"), ("⌘/", "Esta lista")]),
@@ -375,6 +405,8 @@ struct ContentPanel: View {
             ComposerScreen(projectId: pid)
         } else if case .project(let pid) = model.route {
             ProjectPage(projectId: pid)
+        } else if case .canvas = model.route {
+            TeamCanvasView()
         } else if model.gridMode {
             SessionGrid()
         } else if let s = model.selectedSession {

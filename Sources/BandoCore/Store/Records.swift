@@ -136,6 +136,26 @@ public struct Session: Codable, Sendable, Identifiable, Hashable, FetchableRecor
     public var customName: Bool = false
     /// Compressor escolhido para a sessão (ID do catálogo); nil = sem compressão.
     public var compressor: String?
+    /// Equipe multi-agente à qual a sessão pertence (nil = sessão avulsa).
+    public var teamId: String?
+    /// Identificador do papel na equipe (ex.: "orchestrator", "reviewer").
+    public var roleId: String?
+    /// Título legível do papel exibido no Canvas e na lateral.
+    public var roleTitle: String?
+    /// Responsabilidades atribuídas a esta sessão (pré-definidas ou pelo orquestrador).
+    public var responsibilities: String?
+    /// true quando esta sessão coordena as demais da equipe.
+    public var isOrchestrator: Bool = false
+    /// ID da sessão dona do worktree quando esta sessão compartilha worktree.
+    public var worktreeSourceId: String?
+    /// Posição X no Canvas da equipe.
+    public var canvasX: Double?
+    /// Posição Y no Canvas da equipe.
+    public var canvasY: Double?
+    /// Largura personalizada do nó no Canvas (nil = padrão).
+    public var canvasWidth: Double?
+    /// Altura personalizada do nó no Canvas (nil = padrão).
+    public var canvasHeight: Double?
 
     public init(id: String = UUID().uuidString.lowercased(), projectId: String, name: String, prompt: String?,
                 agent: String, provider: String?, model: String?, worktreePath: String, branch: String?,
@@ -205,4 +225,62 @@ public struct PullRequestRecord: Codable, Sendable, FetchableRecord, Persistable
     public var state: String?
     public var createdAt: Date?
     public var mergedAt: Date?
+}
+
+/// Equipe multi-agente vinculada a um projeto.
+public struct TeamRecord: Codable, Sendable, Identifiable, Hashable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "team"
+
+    public var id: String
+    public var projectId: String
+    public var name: String
+    public var goal: String?
+    public var templateId: String?
+    public var createdAt: Date
+    public var updatedAt: Date
+
+    public init(id: String = UUID().uuidString.lowercased(), projectId: String, name: String,
+                goal: String? = nil, templateId: String? = nil, createdAt: Date = Date()) {
+        self.id = id
+        self.projectId = projectId
+        self.name = name
+        self.goal = goal
+        self.templateId = templateId
+        self.createdAt = createdAt
+        self.updatedAt = createdAt
+    }
+
+    public var shortId: String { String(id.prefix(8)) }
+}
+
+/// Ligação direcionada entre duas sessões no Canvas de uma equipe.
+public struct TeamEdgeRecord: Codable, Sendable, Identifiable, Hashable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "teamEdge"
+
+    public var id: String
+    public var teamId: String
+    public var fromSessionId: String
+    public var toSessionId: String
+    public var kind: TeamEdgeKind
+    public var label: String?
+    public var lastDirection: TeamEdgeDirection?
+    public var lastActivityAt: Date?
+    public var interactionCount: Int = 0
+    public var createdAt: Date
+
+    public init(id: String = UUID().uuidString.lowercased(), teamId: String, fromSessionId: String,
+                toSessionId: String, kind: TeamEdgeKind, label: String? = nil,
+                lastDirection: TeamEdgeDirection? = nil, lastActivityAt: Date? = nil,
+                interactionCount: Int = 0, createdAt: Date = Date()) {
+        self.id = id
+        self.teamId = teamId
+        self.fromSessionId = fromSessionId
+        self.toSessionId = toSessionId
+        self.kind = kind
+        self.label = label
+        self.lastDirection = lastDirection
+        self.lastActivityAt = lastActivityAt
+        self.interactionCount = interactionCount
+        self.createdAt = createdAt
+    }
 }

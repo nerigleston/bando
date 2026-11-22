@@ -129,6 +129,52 @@ public final class BandoStore: Sendable {
         m.registerMigration("v6-compressor") { db in
             try db.alter(table: "session") { t in t.add(column: "compressor", .text) }
         }
+        // Modo orquestrador multi-agente: equipes, ligações no canvas e papéis por sessão.
+        m.registerMigration("v7-teams") { db in
+            try db.create(table: "team") { t in
+                t.primaryKey("id", .text)
+                t.belongsTo("project", onDelete: .cascade).notNull()
+                t.column("name", .text).notNull()
+                t.column("goal", .text)
+                t.column("templateId", .text)
+                t.column("createdAt", .datetime).notNull()
+                t.column("updatedAt", .datetime).notNull()
+            }
+            try db.create(table: "teamEdge") { t in
+                t.primaryKey("id", .text)
+                t.column("teamId", .text).notNull().references("team", onDelete: .cascade).indexed()
+                t.column("fromSessionId", .text).notNull().references("session", onDelete: .cascade)
+                t.column("toSessionId", .text).notNull().references("session", onDelete: .cascade)
+                t.column("kind", .text).notNull()
+                t.column("label", .text)
+                t.column("createdAt", .datetime).notNull()
+            }
+            try db.alter(table: "session") { t in
+                t.add(column: "teamId", .text).references("team", onDelete: .setNull).indexed()
+                t.add(column: "roleId", .text)
+                t.add(column: "roleTitle", .text)
+                t.add(column: "responsibilities", .text)
+                t.add(column: "isOrchestrator", .boolean).notNull().defaults(to: false)
+                t.add(column: "worktreeSourceId", .text)
+                t.add(column: "canvasX", .double)
+                t.add(column: "canvasY", .double)
+            }
+        }
+        // Tamanho personalizado dos cartões no Canvas (largura e altura).
+        m.registerMigration("v8-canvas-size") { db in
+            try db.alter(table: "session") { t in
+                t.add(column: "canvasWidth", .double)
+                t.add(column: "canvasHeight", .double)
+            }
+        }
+        // Rastreamento de interações e sentido da troca nas ligações do Canvas.
+        m.registerMigration("v9-edge-activity") { db in
+            try db.alter(table: "teamEdge") { t in
+                t.add(column: "lastDirection", .text)
+                t.add(column: "lastActivityAt", .datetime)
+                t.add(column: "interactionCount", .integer).notNull().defaults(to: 0)
+            }
+        }
         return m
     }
 
@@ -188,6 +234,60 @@ public final class BandoStore: Sendable {
         try pool.read { db in
             try SessionEvent.filter(Column("sessionId") == sessionId).order(Column("at")).fetchAll(db)
         }
+    }
+
+    public func events(forSessionIds sessionIds: [String], kinds: [String]? = nil, limit: Int = 50) throws -> [SessionEvent] {
+        guard !sessionIds.isEmpty else { return [] }
+        return try pool.read { db in
+            var query = SessionEvent.filter(sessionIds.contains(Column("sessionId")))
+            if let kinds, !kinds.isEmpty {
+                query = query.filter(kinds.contains(Column("kind")))
+            }
+            return try query.order(Column("at").desc, Column("id").desc).limit(limit).fetchAll(db)
+        }
+    }
+
+    // MARK: - Equipes
+
+    public func teams(projectId: String? = nil) throws -> [TeamRecord] {
+        try pool.read { db in
+            var q = TeamRecord.all()
+            if let projectId { q = q.filter(Column("projectId") == projectId) }
+            return try q.order(Column("updatedAt").desc).fetchAll(db)
+        }
+    }
+
+    public func team(_ id: String) throws -> TeamRecord? {
+        try pool.read { db in try TeamRecord.fetchOne(db, key: id) }
+    }
+
+    public func findTeam(_ ref: String) throws -> TeamRecord {
+        let all = try teams()
+        if let t = all.first(where: { $0.id == ref }) { return t }
+        let byName = all.filter { $0.name.localizedCaseInsensitiveCompare(ref) == .orderedSame }
+        if byName.count == 1 { return byName[0] }
+        let byPrefix = all.filter { $0.id.hasPrefix(ref.lowercased()) }
+        if byPrefix.count == 1 { return byPrefix[0] }
+        if byName.count + byPrefix.count > 1 { throw BandoError.ambiguous(ref) }
+        throw BandoError.notFound("equipe \(ref)")
+    }
+
+    public func sessions(inTeam teamId: String) throws -> [Session] {
+        try pool.read { db in
+            try Session.filter(Column("teamId") == teamId)
+                .order(Column("isOrchestrator").desc, Column("createdAt").asc)
+                .fetchAll(db)
+        }
+    }
+
+    public func edges(inTeam teamId: String) throws -> [TeamEdgeRecord] {
+        try pool.read { db in
+            try TeamEdgeRecord.filter(Column("teamId") == teamId).order(Column("createdAt").asc).fetchAll(db)
+        }
+    }
+
+    public func allTeamEdges() throws -> [TeamEdgeRecord] {
+        try pool.read { db in try TeamEdgeRecord.order(Column("createdAt").asc).fetchAll(db) }
     }
 }
 

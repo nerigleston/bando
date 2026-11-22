@@ -13,7 +13,14 @@ final class AppModel {
     var config: BandoConfig?
     var projects: [Project] = []
     var sessions: [Session] = []
+    var teams: [TeamRecord] = []
+    var teamEdges: [TeamEdgeRecord] = []
+    var teamEvents: [String: [SessionEvent]] = [:]
     var availability: [String: AgentAvailability] = [:]
+    /// Estado de conexão de cada provider (`connected` / `localOffline` / `disconnected`).
+    var providerStates: [String: ProviderConnectionState] = [:]
+    /// Modelos descobertos ao vivo em servidores locais (Ollama, LM Studio, etc.).
+    var discoveredModels: [String: [String]] = [:]
     /// Contexto e custo por sessão (só agentes que gravam uso, como o Claude Code).
     var contexts: [String: ContextSummary] = [:]
     /// Economia do compressor por sessão (só sessões com compressor).
@@ -112,6 +119,8 @@ final class AppModel {
     @ObservationIgnored private(set) var service: SessionService?
     @ObservationIgnored private var observer: AnyObject?
     @ObservationIgnored private var appearanceObserver: NSKeyValueObservation?
+    @ObservationIgnored private var appWakeObservers: [NSObjectProtocol] = []
+    @ObservationIgnored private var liveActivityToken: NSObjectProtocol?
     @ObservationIgnored private var lastStatus: [String: SessionStatus] = [:]
 
     enum SidebarMode: String, CaseIterable { case byStatus, byProject, projects }
@@ -124,8 +133,17 @@ final class AppModel {
         case project(String)
         /// Caixa de nova sessão (opcionalmente já num projeto).
         case composer(String?)
+        /// Canvas multi-agente de uma equipe (nil = última ou primeira equipe).
+        case canvas(String?)
     }
     var route: Route = .sessions
+    var selectedTeamId: String? {
+        didSet { if let selectedTeamId { Prefs.store.set(selectedTeamId, forKey: "selectedTeamId") } }
+    }
+    var canvasSelectedSessionId: String?
+    var canvasCollapsedTerminals: Set<String> = []
+    var canvasFocusEpoch = 0
+    var showNewTeam = false
     var showAddProject = false
     var showImportWorkspace = false
     /// Agente usado por último na caixa de nova sessão.
@@ -152,6 +170,7 @@ final class AppModel {
         colFractions = Self.validFractions(d.array(forKey: "colFractions") as? [Double], count: gridCols)
         rowFractions = Self.validFractions(d.array(forKey: "rowFractions") as? [Double], count: gridRows)
         gridCells = (d.array(forKey: "gridCells") as? [String] ?? []).map { $0.isEmpty ? nil : $0 }
+        selectedTeamId = d.string(forKey: "selectedTeamId")
     }
 
     private func save() {
@@ -181,6 +200,14 @@ final class AppModel {
         observer = ChangeNotifier.observe { [weak self] in
             Task { @MainActor in self?.refreshSessions() }
         }
+        let handleWake: @Sendable (Notification) -> Void = { [weak self] _ in
+            Task { @MainActor in self?.handleFocusOrWake() }
+        }
+        appWakeObservers = [
+            NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main, using: handleWake),
+            NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main, using: handleWake),
+            NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main, using: handleWake),
+        ]
         systemIsDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         appearanceObserver = NSApp.observe(\.effectiveAppearance) { [weak self] app, _ in
             let dark = app.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
@@ -209,7 +236,39 @@ final class AppModel {
     }
 
     func stop() {
+        for obs in appWakeObservers {
+            NotificationCenter.default.removeObserver(obs)
+            NSWorkspace.shared.notificationCenter.removeObserver(obs)
+        }
+        appWakeObservers = []
+        if let token = liveActivityToken {
+            ProcessInfo.processInfo.endActivity(token)
+            liveActivityToken = nil
+        }
         try? FileManager.default.removeItem(at: BandoPaths.standard().stateDir.appendingPathComponent("app.pid"))
+    }
+
+    private func handleFocusOrWake() {
+        canvasFocusEpoch &+= 1
+        refreshSessions()
+        guard let service, sessions.contains(where: \.status.isLive) else { return }
+        Task.detached(priority: .utility) {
+            try? service.reconcile()
+            await MainActor.run { self.refreshSessions() }
+        }
+    }
+
+    private func updateAppNapPolicy(for fresh: [Session]) {
+        let hasActiveWork = fresh.contains { $0.status == .working || $0.status == .starting || $0.status == .waiting }
+        if hasActiveWork, liveActivityToken == nil {
+            liveActivityToken = ProcessInfo.processInfo.beginActivity(
+                options: .userInitiatedAllowingIdleSystemSleep,
+                reason: "Sessões de agentes ativas no Bando"
+            )
+        } else if !hasActiveWork, let token = liveActivityToken {
+            ProcessInfo.processInfo.endActivity(token)
+            liveActivityToken = nil
+        }
     }
 
     private func writePidFile() {
@@ -234,6 +293,7 @@ final class AppModel {
             availability = result.1
             loadError = nil
             refreshSessions()
+            refreshProviders()
             // Preços: catálogo + fonte remota (baixada no máximo 1× por dia).
             Task.detached(priority: .utility) {
                 await PriceTable.refreshRemote()
@@ -261,6 +321,18 @@ final class AppModel {
         guard let store = service?.store else { return }
         projects = (try? store.projects()) ?? []
         let fresh = (try? store.sessions()) ?? []
+        teams = (try? store.teams()) ?? []
+        teamEdges = (try? store.allTeamEdges()) ?? []
+        if let tid = selectedTeamId, !teams.contains(where: { $0.id == tid }) { selectedTeamId = nil }
+        if selectedTeamId == nil { selectedTeamId = teams.first?.id }
+        let teamKinds = ["team-delegate", "team-handoff", "team-read", "team-return"]
+        var groupedEvents: [String: [SessionEvent]] = [:]
+        for t in teams {
+            let memberIds = fresh.filter { $0.teamId == t.id }.map(\.id)
+            groupedEvents[t.id] = (try? store.events(forSessionIds: memberIds, kinds: teamKinds, limit: 40)) ?? []
+        }
+        teamEvents = groupedEvents
+        updateAppNapPolicy(for: fresh)
         notifyTransitions(fresh)
         sessions = fresh
         multiSelection.formIntersection(fresh.map(\.id))
@@ -332,7 +404,10 @@ final class AppModel {
     /// só é relido quando a sessão muda, e cada leitura é de um arquivo só.
     @ObservationIgnored private var contextStamp: [String: Date] = [:]
     func refreshContexts() {
-        let visible = Set([selection].compactMap { $0 } + (gridMode ? gridCells.prefix(cellCount).compactMap { $0 } : []))
+        var visible = Set([selection].compactMap { $0 } + (gridMode ? gridCells.prefix(cellCount).compactMap { $0 } : []))
+        if case .canvas(let tid) = route, let activeTeam = tid ?? selectedTeamId {
+            visible.formUnion(sessions.filter { $0.teamId == activeTeam }.map(\.id))
+        }
         let targets = sessions.filter { visible.contains($0.id) && $0.nativeId != nil && contextStamp[$0.id] != $0.updatedAt }
         guard !targets.isEmpty else { return }
         for s in targets { contextStamp[s.id] = s.updatedAt }
@@ -354,7 +429,10 @@ final class AppModel {
     /// lê as linhas novas do arquivo, poucos KB por turno.
     func refreshCompression() {
         guard let paths = service?.paths, let config else { return }
-        let visible = Set([selection].compactMap { $0 } + (gridMode ? gridCells.prefix(cellCount).compactMap { $0 } : []))
+        var visible = Set([selection].compactMap { $0 } + (gridMode ? gridCells.prefix(cellCount).compactMap { $0 } : []))
+        if case .canvas(let tid) = route, let activeTeam = tid ?? selectedTeamId {
+            visible.formUnion(sessions.filter { $0.teamId == activeTeam }.map(\.id))
+        }
         for s in sessions where visible.contains(s.id) {
             guard let id = s.compressor, let def = config.compressors[id] else { continue }
             if compressionReaders[s.id] == nil {
@@ -787,7 +865,365 @@ extension AppModel.Route {
         switch self {
         case .project(let id): id
         case .composer(let id): id
-        case .sessions: nil
+        case .sessions, .canvas: nil
+        }
+    }
+}
+
+// MARK: - Equipes e Canvas
+
+extension AppModel {
+    func openCanvas(teamId: String? = nil) {
+        if let teamId { selectedTeamId = teamId }
+        else if selectedTeamId == nil { selectedTeamId = teams.first?.id }
+        route = .canvas(selectedTeamId)
+        refreshContexts()
+    }
+
+    func toggleCanvas() {
+        if case .canvas = route { route = .sessions } else { openCanvas() }
+    }
+
+    var activeTeam: TeamRecord? {
+        if case .canvas(let id) = route, let id, let t = teams.first(where: { $0.id == id }) { return t }
+        if let id = selectedTeamId, let t = teams.first(where: { $0.id == id }) { return t }
+        return teams.first
+    }
+
+    func team(_ id: String?) -> TeamRecord? { id.flatMap { id in teams.first { $0.id == id } } }
+
+    func teamSessions(_ teamId: String) -> [Session] {
+        sessions.filter { $0.teamId == teamId }
+            .sorted { ($0.isOrchestrator ? 0 : 1, $0.createdAt) < ($1.isOrchestrator ? 0 : 1, $1.createdAt) }
+    }
+
+    func edges(for teamId: String) -> [TeamEdgeRecord] {
+        teamEdges.filter { $0.teamId == teamId }
+    }
+
+    func teamActivity(for teamId: String) -> [SessionEvent] {
+        teamEvents[teamId] ?? []
+    }
+
+    func latestTeamInteraction(for sessionId: String, in teamId: String) -> SessionEvent? {
+        teamActivity(for: teamId).first { $0.sessionId == sessionId }
+    }
+
+    func createTeam(_ req: TeamService.CreateTeamRequest) {
+        guard let service else { return }
+        toast = "Criando equipe \(req.name)…"
+        Task.detached {
+            do {
+                let res = try TeamService(service: service).createTeam(req)
+                await MainActor.run {
+                    self.toast = nil
+                    self.refreshSessions()
+                    self.selectedTeamId = res.team.id
+                    self.canvasSelectedSessionId = res.sessions.first(where: \.isOrchestrator)?.id ?? res.sessions.first?.id
+                    self.route = .canvas(res.team.id)
+                }
+            } catch {
+                await MainActor.run { self.toast = nil; self.showError("Criar equipe", error) }
+            }
+        }
+    }
+
+    func addTeamMember(
+        to teamId: String,
+        roleTitle: String,
+        agent: String,
+        provider: String?,
+        model modelName: String?,
+        compressor: String?,
+        responsibilities: String,
+        prompt: String?,
+        isOrchestrator: Bool,
+        worktree: WorktreePolicy,
+        shareWithSessionId: String?,
+        connectFromSessionId: String?,
+        edgeKind: TeamEdgeKind,
+        startNow: Bool
+    ) {
+        guard let service else { return }
+        Task.detached {
+            do {
+                let depId = (edgeKind == .sequence || edgeKind == .handoff) ? connectFromSessionId : nil
+                let s = try TeamService(service: service).addMember(
+                    to: teamId, roleTitle: roleTitle, agent: agent, provider: provider, model: modelName,
+                    compressor: compressor, responsibilities: responsibilities, prompt: prompt,
+                    isOrchestrator: isOrchestrator, worktree: worktree, shareWithSessionId: shareWithSessionId,
+                    dependsOnSessionId: depId, connectFromSessionId: connectFromSessionId, edgeKind: edgeKind,
+                    startNow: startNow
+                )
+                await MainActor.run {
+                    self.refreshSessions()
+                    self.canvasSelectedSessionId = s.id
+                }
+            } catch {
+                await MainActor.run { self.showError("Adicionar agente", error) }
+            }
+        }
+    }
+
+    func attachSession(_ sessionId: String, to teamId: String, at point: CGPoint? = nil) {
+        guard let service else { return }
+        Task.detached {
+            do {
+                _ = try TeamService(service: service).attachExistingSession(
+                    sessionId, to: teamId,
+                    canvasX: point.map { Double($0.x) }, canvasY: point.map { Double($0.y) }
+                )
+                await MainActor.run {
+                    self.refreshSessions()
+                    self.canvasSelectedSessionId = sessionId
+                }
+            } catch {
+                await MainActor.run { self.showError("Vincular sessão", error) }
+            }
+        }
+    }
+
+    func connectTeamNodes(teamId: String, from: String, to: String, kind: TeamEdgeKind) {
+        guard let service else { return }
+        Task.detached {
+            do {
+                _ = try TeamService(service: service).connect(teamId: teamId, from: from, to: to, kind: kind)
+                await MainActor.run { self.refreshSessions() }
+            } catch {
+                await MainActor.run { self.showError("Conectar nós", error) }
+            }
+        }
+    }
+
+    func disconnectTeamEdge(_ edgeId: String) {
+        guard let service else { return }
+        Task.detached {
+            do {
+                try TeamService(service: service).disconnect(edgeId: edgeId)
+                await MainActor.run { self.refreshSessions() }
+            } catch {
+                await MainActor.run { self.showError("Remover ligação", error) }
+            }
+        }
+    }
+
+    func moveCanvasNode(_ sessionId: String, x: Double, y: Double) {
+        guard let service else { return }
+        if let idx = sessions.firstIndex(where: { $0.id == sessionId }) {
+            sessions[idx].canvasX = x
+            sessions[idx].canvasY = y
+        }
+        Task.detached {
+            try? TeamService(service: service).updatePosition(sessionId: sessionId, x: x, y: y)
+        }
+    }
+
+    func previewCanvasFrame(_ sessionId: String, x: Double, y: Double, width: Double?, height: Double?) {
+        guard let idx = sessions.firstIndex(where: { $0.id == sessionId }) else { return }
+        sessions[idx].canvasX = x
+        sessions[idx].canvasY = y
+        sessions[idx].canvasWidth = width
+        sessions[idx].canvasHeight = height
+    }
+
+    func commitCanvasFrame(_ sessionId: String, x: Double, y: Double, width: Double?, height: Double?) {
+        previewCanvasFrame(sessionId, x: x, y: y, width: width, height: height)
+        guard let service else { return }
+        Task.detached {
+            try? TeamService(service: service).updateFrame(sessionId: sessionId, x: x, y: y, width: width, height: height)
+        }
+    }
+
+    func updateTeamRole(
+        sessionId: String,
+        roleTitle: String?,
+        responsibilities: String?,
+        isOrchestrator: Bool?,
+        agent: String?,
+        provider: String?,
+        model modelName: String?,
+        compressor: String?,
+        clearProvider: Bool,
+        clearModel: Bool,
+        clearCompressor: Bool
+    ) {
+        guard let service else { return }
+        Task.detached {
+            do {
+                try TeamService(service: service).updateRole(
+                    sessionId: sessionId, roleTitle: roleTitle, responsibilities: responsibilities,
+                    isOrchestrator: isOrchestrator, agent: agent, provider: provider, model: modelName,
+                    compressor: compressor, clearProvider: clearProvider, clearModel: clearModel,
+                    clearCompressor: clearCompressor
+                )
+                await MainActor.run { self.refreshSessions() }
+            } catch {
+                await MainActor.run { self.showError("Atualizar papel", error) }
+            }
+        }
+    }
+
+    func delegateToNode(teamId: String, targetSessionId: String, task: String) {
+        guard let service else { return }
+        Task.detached {
+            do {
+                _ = try TeamService(service: service).delegate(to: targetSessionId, inTeam: teamId, task: task)
+                await MainActor.run { self.refreshSessions() }
+            } catch {
+                await MainActor.run { self.showError("Delegar tarefa", error) }
+            }
+        }
+    }
+
+    func startTeam(_ teamId: String) {
+        guard let service else { return }
+        Task.detached {
+            do {
+                try TeamService(service: service).startTeam(teamId)
+                await MainActor.run { self.refreshSessions() }
+            } catch {
+                await MainActor.run { self.showError("Iniciar equipe", error) }
+            }
+        }
+    }
+
+    func stopTeam(_ teamId: String) {
+        guard let service else { return }
+        Task.detached {
+            do {
+                try TeamService(service: service).stopTeam(teamId)
+                await MainActor.run { self.refreshSessions() }
+            } catch {
+                await MainActor.run { self.showError("Parar equipe", error) }
+            }
+        }
+    }
+
+    func deleteTeam(_ teamId: String, force: Bool = false) {
+        guard let service else { return }
+        Task.detached {
+            do {
+                try TeamService(service: service).deleteTeam(teamId, removeWorktrees: true, deleteBranches: false, force: force)
+                await MainActor.run {
+                    if self.selectedTeamId == teamId { self.selectedTeamId = nil }
+                    self.refreshSessions()
+                    if self.teams.isEmpty, case .canvas = self.route { self.route = .sessions }
+                }
+            } catch BandoError.unsafeDelete(let why) {
+                await MainActor.run {
+                    let alert = NSAlert()
+                    alert.messageText = "Apagar equipe mesmo assim?"
+                    alert.informativeText = "\(why). Esse trabalho não salvo será perdido."
+                    alert.addButton(withTitle: "Cancelar")
+                    alert.addButton(withTitle: "Apagar").hasDestructiveAction = true
+                    if alert.runModal() == .alertSecondButtonReturn {
+                        self.deleteTeam(teamId, force: true)
+                    }
+                }
+            } catch {
+                await MainActor.run { self.showError("Apagar equipe", error) }
+            }
+        }
+    }
+
+    func autoLayoutTeam(_ teamId: String) {
+        let members = teamSessions(teamId)
+        let edges = edges(for: teamId)
+        guard !members.isEmpty else { return }
+
+        var level: [String: Int] = Dictionary(uniqueKeysWithValues: members.map { ($0.id, $0.isOrchestrator ? 0 : 0) })
+        for _ in 0..<members.count {
+            for e in edges {
+                let next = (level[e.fromSessionId] ?? 0) + 1
+                if next > (level[e.toSessionId] ?? 0) { level[e.toSessionId] = next }
+            }
+        }
+        let grouped = Dictionary(grouping: members) { level[$0.id] ?? 0 }
+        var xCursor: Double = 80
+        for col in grouped.keys.sorted() {
+            let nodes = grouped[col] ?? []
+            var yCursor: Double = 80
+            var maxColWidth: Double = 390
+            for s in nodes {
+                let w = s.canvasWidth ?? 390
+                let h = s.canvasHeight ?? 290
+                moveCanvasNode(s.id, x: xCursor, y: yCursor)
+                yCursor += h + 50
+                if w > maxColWidth { maxColWidth = w }
+            }
+            xCursor += maxColWidth + 80
+        }
+    }
+
+    // MARK: - Providers conectados e modelos
+
+    func refreshProviders() {
+        guard let config else { return }
+        let list = config.sortedProviders
+        Task.detached(priority: .userInitiated) {
+            let store = KeychainStore()
+            let env = ProcessInfo.processInfo.environment
+            var initial: [String: ProviderConnectionState] = [:]
+            for p in list {
+                initial[p.id] = ProviderDiscovery.connectionState(for: p, store: store, environment: env)
+            }
+            let snap = initial
+            await MainActor.run { self.providerStates = snap }
+
+            let probed = await ProviderDiscovery.probeLocalServers(for: list)
+            var updated: [String: ProviderConnectionState] = [:]
+            for p in list {
+                updated[p.id] = ProviderDiscovery.connectionState(
+                    for: p, store: store, environment: env, reachableLocals: probed.reachable
+                )
+            }
+            let finalStates = updated
+            let finalModels = probed.models
+            await MainActor.run {
+                self.providerStates = finalStates
+                self.discoveredModels = finalModels
+            }
+        }
+    }
+
+    func connectionState(for providerId: String) -> ProviderConnectionState {
+        if providerId == "default" { return .connected }
+        return providerStates[providerId] ?? .disconnected
+    }
+
+    /// Providers suportados pelo agente, ordenados com "Conta do agente" e conectados primeiro.
+    func providerOptions(for agentId: String) -> [(provider: ProviderDefinition, state: ProviderConnectionState)] {
+        let supported = config?.providers(for: agentId) ?? []
+        return supported
+            .map { ($0, connectionState(for: $0.id)) }
+            .sorted { a, b in
+                func rank(_ item: (provider: ProviderDefinition, state: ProviderConnectionState)) -> Int {
+                    if item.provider.id == "default" { return 0 }
+                    switch item.state {
+                    case .connected: return 1
+                    case .localOffline: return 2
+                    case .disconnected: return 3
+                    }
+                }
+                let ra = rank(a), rb = rank(b)
+                if ra != rb { return ra < rb }
+                return a.provider.name.localizedCaseInsensitiveCompare(b.provider.name) == .orderedAscending
+            }
+    }
+
+    /// Lista de modelos disponíveis para `(agente, provider)`.
+    func modelOptions(for agentId: String, providerId: String) -> [String] {
+        guard let config else { return [] }
+        return ProviderDiscovery.models(for: agentId, providerId: providerId, config: config, discovered: discoveredModels)
+    }
+
+    /// Todos os providers conectados (além de "Conta do agente") com sua lista de modelos.
+    var connectedProvidersWithModels: [(provider: ProviderDefinition, models: [String])] {
+        guard let config else { return [] }
+        return config.sortedProviders.compactMap { p in
+            guard p.id != "default", connectionState(for: p.id) == .connected else { return nil }
+            let list = ProviderDiscovery.models(for: "", providerId: p.id, config: config, discovered: discoveredModels)
+            return (p, list)
         }
     }
 }

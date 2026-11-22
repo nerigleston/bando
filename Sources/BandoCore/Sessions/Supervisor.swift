@@ -372,6 +372,9 @@ final class OutputWatcher: @unchecked Sendable {
     var state: SessionStatus = .working
     /// Em modo hooks: o watcher marcou "esperando" por causa de texto na tela.
     var screenWaiting = false
+    /// Última assinatura visível do terminal e quantas checagens seguidas não mudaram.
+    var lastScreenSignature = ""
+    var unchangedChecks = 0
     let busy: Regex<AnyRegexOutput>?
     let waiting: Regex<AnyRegexOutput>?
 
@@ -452,6 +455,7 @@ final class OutputWatcher: @unchecked Sendable {
         sawOutput = true
         bytesSinceQuiet += count
         if state != .working && bytesSinceQuiet >= Self.activityThreshold && (mode == .output || mode == .silence) {
+            unchangedChecks = 0
             set(.working, detail: nil)
         }
         // Não reinicia o relógio a cada pedaço de saída: só arma se não houver.
@@ -501,18 +505,39 @@ final class OutputWatcher: @unchecked Sendable {
             return
         }
         if let busy, tail.firstMatch(of: busy) != nil {
+            unchangedChecks = 0
+            lastScreenSignature = Self.screenSignature(from: lines)
             if state != .working { set(.working, detail: nil) }
             armTimer(after: Double(agent.idleAfter))
             return
         }
-        if noisy {
-            // Ainda escrevendo: confere de novo no próximo intervalo.
+        let signature = Self.screenSignature(from: lines)
+        let screenChanged = signature != lastScreenSignature
+        if screenChanged {
+            lastScreenSignature = signature
+            unchangedChecks = 0
+        } else {
+            unchangedChecks += 1
+        }
+        if noisy && (screenChanged || unchangedChecks < 2) {
+            // Ainda escrevendo ou só redesenhando na primeira checagem: confere no próximo intervalo.
             armTimer(after: Double(agent.idleAfter))
             return
         }
         guard state == .working || state == .waiting else { return }
         let changed = usesWorktree ? ((try? Git())?.changedFileCount(worktree) ?? 0) : 0
         set(changed > 0 ? .review : .idle, detail: changed > 0 ? "\(changed) arquivo(s) alterado(s)" : nil)
+    }
+
+    /// Normaliza o conteúdo visível do terminal ignorando relógios e spinners
+    /// para detectar quando a TUI parou de produzir texto real mesmo emitindo ANSI.
+    static func screenSignature(from lines: [String]) -> String {
+        let stripped = lines.map { line in
+            var s = line.replacingOccurrences(of: #"\b\d{1,2}:\d{2}(?::\d{2})?\b"#, with: "00:00", options: .regularExpression)
+            s = s.replacingOccurrences(of: #"[✳⠀-⣿]"#, with: "", options: .regularExpression)
+            return s.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }
+        return stripped.joined(separator: "\n")
     }
 
     /// A pergunta na tela: última linha terminada em "?" (ou a linha que casou).

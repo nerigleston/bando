@@ -7,6 +7,13 @@ public protocol SecretStore: Sendable {
     func read(service: String, account: String) throws -> String?
     func write(_ value: String, service: String, account: String) throws
     func delete(service: String, account: String) throws
+    func exists(service: String, account: String) -> Bool
+}
+
+public extension SecretStore {
+    func exists(service: String, account: String) -> Bool {
+        ((try? read(service: service, account: account)) ?? nil) != nil
+    }
 }
 
 public enum SecretError: Error, LocalizedError, Equatable {
@@ -64,6 +71,16 @@ public struct KeychainStore: SecretStore {
     public func delete(service: String, account: String) throws {
         let status = SecItemDelete(query(service, account) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else { throw SecretError.keychain(status) }
+    }
+
+    /// Confere se o item existe sem ler o segredo (`kSecReturnData` fica de fora,
+    /// então não dispara o aviso de acesso do Keychain em builds sem Developer ID).
+    public func exists(service: String, account: String) -> Bool {
+        var q = query(service, account)
+        q[kSecReturnAttributes as String] = true
+        q[kSecMatchLimit as String] = kSecMatchLimitOne
+        var item: CFTypeRef?
+        return SecItemCopyMatching(q as CFDictionary, &item) == errSecSuccess
     }
 }
 

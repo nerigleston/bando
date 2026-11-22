@@ -10,9 +10,9 @@ struct Bando: AsyncParsableCommand {
         version: BandoVersion.current,
         subcommands: [
             New.self, List.self, Attach.self, Msg.self, Stop.self, Resume.self, Swap.self, Remove.self, Seen.self, Log.self,
-            Projects.self, Import.self, Usage.self, ReportCommand.self,
+            Team.self, Projects.self, Import.self, Usage.self, ReportCommand.self,
             Agents.self, Providers.self, Compressors.self, Themes.self, Mcp.self, Plan.self, Secret.self, Config.self, Doctor.self,
-            Run.self, Hook.self,
+            Run.self, Hook.self, McpBridge.self,
         ]
     )
 }
@@ -363,6 +363,7 @@ struct Config: ParsableCommand {
             print("agentes:   \(p.agentsFile.path)")
             print("providers: \(p.providersFile.path)")
             print("temas:     \(p.themesFile.path)")
+            print("equipes:   \(p.teamsFile.path)")
             print("estado:    \(p.stateDir.path)")
         }
     }
@@ -377,6 +378,7 @@ struct Config: ParsableCommand {
             try FileManager.default.createDirectory(at: p.configDir, withIntermediateDirectories: true)
             for (url, text) in [(p.agentsFile, UserTemplates.agents), (p.providersFile, UserTemplates.providers),
                                 (p.themesFile, UserTemplates.themes), (p.mcpFile, UserTemplates.mcp),
+                                (p.teamsFile, UserTemplates.teams),
                                 (p.configDir.appendingPathComponent("handoff.md"), UserTemplates.handoff)] {
                 if FileManager.default.fileExists(atPath: url.path) {
                     print("já existe, mantido: \(url.path)")
@@ -390,13 +392,14 @@ struct Config: ParsableCommand {
 
     struct Presets_: ParsableCommand {
         static let configuration = CommandConfiguration(commandName: "presets", abstract: "Imprime os presets embutidos (referência para personalizar).")
-        @Argument(help: "agents, providers ou themes") var which: String = "agents"
+        @Argument(help: "agents, providers, themes ou teams") var which: String = "agents"
         func run() throws {
             switch which {
             case "agents": print(Presets.agents)
             case "providers": print(Presets.providers)
             case "themes": print(Presets.themes)
-            default: throw ValidationError("Use agents, providers ou themes")
+            case "teams": print(Presets.teams)
+            default: throw ValidationError("Use agents, providers, themes ou teams")
             }
         }
     }

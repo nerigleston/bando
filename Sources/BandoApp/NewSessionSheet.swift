@@ -60,12 +60,12 @@ struct NewSessionSheet: View {
                 }
                 VStack(alignment: .leading, spacing: 6) {
                     FieldLabel("Provider")
-                    SelectField(selection: $provider, options: providers.map { ($0.id, $0.name) })
+                    ProviderField(agentId: agent, selection: $provider)
                 }
             }
             VStack(alignment: .leading, spacing: 6) {
                 FieldLabel("Modelo", hint: "opcional")
-                TextField(modelHint, text: $modelName).fieldBox()
+                ModelField(agentId: agent, providerId: provider, text: $modelName, placeholder: modelHint)
             }
             if !compressors.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {

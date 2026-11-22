@@ -312,6 +312,17 @@ struct SessionAction: Identifiable {
             ? .init(id: "grid", title: "Tirar da grade", symbol: "square.grid.2x2") { model.removeFromGrid(id) }
             : .init(id: "grid", title: "Adicionar à grade", symbol: "square.grid.2x2") { model.showInGrid(id) })
         items.append(.init(id: "alone", title: "Abrir só esta", symbol: "arrow.up.left.and.arrow.down.right") { model.openAlone(id) })
+        if let tid = session.teamId {
+            items.append(.init(id: "canvas", title: "Ver no Canvas da equipe", symbol: "point.3.connected.trianglepath.dotted") {
+                model.canvasSelectedSessionId = id
+                model.openCanvas(teamId: tid)
+            })
+        } else if let firstTeam = model.teams.first(where: { $0.projectId == session.projectId }) {
+            items.append(.init(id: "attachTeam", title: "Adicionar à equipe \(firstTeam.name)", symbol: "point.3.connected.trianglepath.dotted") {
+                model.attachSession(id, to: firstTeam.id)
+                model.openCanvas(teamId: firstTeam.id)
+            })
+        }
         items.append(.init(id: "hide", title: session.hidden ? "Mostrar na lateral" : "Esconder da lateral", symbol: session.hidden ? "eye" : "eye.slash") {
             let v = !session.hidden; model.run("Esconder") { try $0.setHidden(id, v) }
         })

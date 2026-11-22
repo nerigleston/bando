@@ -42,6 +42,10 @@ public enum Presets {{
     public static let compressors = {DELIM}"""
 {body("compressors")}
     """{DELIM}
+
+    public static let teams = {DELIM}"""
+{body("teams")}
+    """{DELIM}
 }}
 '''
 

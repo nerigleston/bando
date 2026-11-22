@@ -155,4 +155,51 @@ public enum UserTemplates {
     # {arquivo} vira o caminho do arquivo de repasse (.bando/handoff.md).
 
     """# + handoffDefault + "\n"
+
+    public static let teams = #"""
+    # Equipes multi-agente do Bando (~/.config/bando/teams.toml).
+    #
+    # Este arquivo é seu. O app nunca o sobrescreve, nem em atualizações.
+    # Você também pode colocar um arquivo .bando/teams.toml na raiz de um projeto.
+    #
+    # Campos de cada papel (`[teams.<id>.roles.<papel>]`):
+    #   name                nome exibido no Canvas
+    #   is_orchestrator     true para o nó coordenador da equipe
+    #   agent               ID do agente (ex.: "claude", "codex", "opencode")
+    #   provider            ID do provider (ex.: "anthropic", "openrouter", "ollama")
+    #   model               modelo específico para este papel
+    #   worktree            "isolated" (worktree próprio) ou "shared" (compartilhado)
+    #   share_worktree_with ID do papel dono do worktree quando worktree = "shared"
+    #   auto_start          false deixa o nó aguardando delegação do orquestrador
+    #   responsibilities    instruções e escopo entregues ao agente
+    #
+    # Ligações (`[[teams.<id>.edges]]`):
+    #   from, to   IDs dos papéis
+    #   kind       "delegate" | "sequence" | "handoff"
+
+    # Exemplo:
+    # [teams.minha-equipe]
+    # name = "Minha equipe"
+    # description = "Orquestrador Claude + implementador Codex via OpenRouter"
+    #
+    # [teams.minha-equipe.roles.orquestrador]
+    # name = "Orquestrador"
+    # is_orchestrator = true
+    # agent = "claude"
+    # responsibilities = "Quebrar a tarefa em subtarefas e coordenar o implementador."
+    #
+    # [teams.minha-equipe.roles.dev]
+    # name = "Implementador"
+    # agent = "codex"
+    # provider = "openrouter"
+    # worktree = "shared"
+    # share_worktree_with = "orquestrador"
+    # auto_start = false
+    # responsibilities = "Implementar os arquivos pedidos e rodar os testes."
+    #
+    # [[teams.minha-equipe.edges]]
+    # from = "orquestrador"
+    # to = "dev"
+    # kind = "delegate"
+    """#
 }

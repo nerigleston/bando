@@ -24,6 +24,7 @@ struct Sidebar: View {
                     NewProjectRow()
                 } else {
                     ActionRow(symbol: "square.and.pencil", title: "Nova sessão", shortcut: "⌘N") { model.openComposer() }
+                    ActionRow(symbol: "point.3.connected.trianglepath.dotted", title: "Canvas da equipe", shortcut: "⌥⌘C") { model.openCanvas() }
                     ActionRow(symbol: "folder", title: "Projetos", shortcut: nil) { model.sidebarMode = .projects }
                     ActionRow(symbol: model.sidebarMode == .byProject ? "list.bullet" : "square.stack",
                               title: model.sidebarMode == .byProject ? "Agrupar por estado" : "Agrupar por projeto", shortcut: nil) {
@@ -618,6 +619,12 @@ struct SessionInspector: View {
                     LabeledContent("Agente", value: model.config?.agents[s.agent]?.name ?? s.agent)
                     LabeledContent("Provider", value: s.provider.flatMap { model.config?.providers[$0]?.name } ?? "login da CLI")
                     if let m = s.model { LabeledContent("Modelo", value: m) }
+                    if let t = model.team(s.teamId) {
+                        LabeledContent("Equipe", value: "\(t.name)\(s.isOrchestrator ? " (Orquestrador)" : "")")
+                    }
+                    if let resp = s.responsibilities, !resp.isEmpty {
+                        LabeledContent("Papel") { Text(resp).lineLimit(4) }
+                    }
                     LabeledContent("Criada", value: s.createdAt.formatted(date: .abbreviated, time: .shortened))
                 }
                 Section("Código") {

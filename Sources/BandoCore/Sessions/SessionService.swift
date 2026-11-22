@@ -211,6 +211,7 @@ public final class SessionService: @unchecked Sendable {
     func sessionEnvironment(_ session: Session) -> [String: String] {
         var env = ["BANDO_SESSION_ID": session.id, "BANDO_PROJECT_ID": session.projectId,
                    "BANDO_CONFIG_DIR": paths.configDir.path, "BANDO_STATE_DIR": paths.stateDir.path]
+        if let teamId = session.teamId { env["BANDO_TEAM_ID"] = teamId }
         let current = ProcessInfo.processInfo.environment
         if let cli = current["BANDO_CLI"] { env["BANDO_CLI"] = cli }
         // Sempre UTF-8, mesmo com o app aberto pelo Finder (sem LANG): sem isso
@@ -538,6 +539,10 @@ public final class SessionService: @unchecked Sendable {
             UserNotifier.notify(title: "\(s.name) falhou", body: detail ?? "código \(exitCode ?? -1)", paths: paths)
         default: break
         }
+        if s.teamId != nil, [.review, .idle, .waiting, .exited].contains(status),
+           kind != "reconcile", kind != "stop" {
+            TeamService(service: self).recordMemberTurnReturn(sessionId: s.id)
+        }
         if status.releasesDependents { try startDependents(of: id) }
     }
 
@@ -566,12 +571,18 @@ public final class SessionService: @unchecked Sendable {
     }
 
     func startDependents(of id: String) throws {
+        let parent = try? store.session(id)
         let children = try store.pool.read { db in
             try Session.filter(Column("dependsOn") == id && Column("status") == SessionStatus.queued.rawValue).fetchAll(db)
         }
+        let teamSvc = TeamService(service: self)
         for child in children {
             do {
-                try start(child, mode: .fresh)
+                if let parent, let handoffPrompt = teamSvc.handoffPromptForDependent(parent: parent, child: child) {
+                    try start(child, mode: .handoff(handoffPrompt))
+                } else {
+                    try start(child, mode: .fresh)
+                }
             } catch {
                 try? transition(child.id, to: .error, kind: "start-failed", detail: error.localizedDescription)
             }
@@ -603,13 +614,37 @@ public final class SessionService: @unchecked Sendable {
         let hookArgs = (agent.status == .hooks)
             ? HookPresets.launchArgs(preset: agent.hooks, bandoPath: BandoCLI.path(), sessionId: s.id) : []
         let project = try store.project(s.projectId)
-        let servers = mcpServers(for: agent, project: project)
+        var servers = mcpServers(for: agent, project: project)
+        if let teamId = s.teamId, agent.mcp != nil {
+            servers.append(McpServer(
+                id: "bando-team",
+                name: "Bando Equipe",
+                transport: .stdio,
+                command: BandoCLI.path(),
+                args: ["mcp-bridge", "--team", teamId, "--session", s.id],
+                env: [:],
+                url: nil,
+                headers: [:],
+                agents: [],
+                projects: []
+            ))
+        }
         let mcp = agent.mcp.map {
             McpLaunch.build(servers, adapter: $0, runDir: paths.stateDir.appendingPathComponent("run"), sessionId: s.id)
         } ?? McpLaunch()
+        var effectivePrompt = promptOverride ?? (mode == .fresh ? s.prompt : nil)
+        if let teamId = s.teamId, let team = try? store.team(teamId) {
+            let members = (try? store.sessions(inTeam: teamId)) ?? [s]
+            let edges = (try? store.edges(inTeam: teamId)) ?? []
+            let ctxURL = TeamContext.writeContextFile(for: s, team: team, members: members, edges: edges, config: config)
+            let relCtx = ctxURL != nil ? TeamContext.relativePath(teamId: teamId) : nil
+            if case .fresh = mode {
+                effectivePrompt = TeamContext.enrichedPrompt(basePrompt: effectivePrompt, for: s, team: team, contextFileRelativePath: relCtx)
+            }
+        }
         let plan = try LaunchPlan.build(LaunchRequest(
             agent: agent, provider: provider, model: s.model,
-            prompt: promptOverride ?? (mode == .fresh ? s.prompt : nil), mode: mode, sessionId: s.id,
+            prompt: effectivePrompt, mode: mode, sessionId: s.id,
             worktree: s.worktreePath, branch: s.branch, newNativeId: newId, hookArgs: hookArgs, mcp: mcp,
             compressor: try s.compressor.map { try config.compressor($0) }
         ))

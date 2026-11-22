@@ -13,12 +13,14 @@ public struct BandoConfig: Sendable {
     public var themes: [String: ThemeDefinition] = [:]
     public var mcp: [String: McpServer] = [:]
     public var compressors: [String: CompressorDefinition] = [:]
+    public var teams: [String: TeamTemplate] = [:]
     /// Entradas puladas por erro, para mostrar na tela e no `bando doctor`.
     public var issues: [ConfigIssue] = []
     /// IDs que aparecem no arquivo do usuário (adicionados ou personalizados).
     public var userAgentIds: Set<String> = []
     public var userProviderIds: Set<String> = []
     public var userThemeIds: Set<String> = []
+    public var userTeamIds: Set<String> = []
 
     public var sortedThemes: [ThemeDefinition] {
         themes.values.sorted { ($0.appearance.rawValue, $0.name) < ($1.appearance.rawValue, $1.name) }
@@ -59,6 +61,39 @@ public struct BandoConfig: Sendable {
         compressors.values.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
+    public var sortedTeams: [TeamTemplate] {
+        teams.values.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    public func team(_ id: String) throws -> TeamTemplate {
+        guard let t = teams[id] else { throw ConfigError.unknownTeam(id) }
+        return t
+    }
+
+    /// Templates visíveis para um projeto específico (mescla overrides de `<repo>/.bando/teams.toml`).
+    public func teams(forProject projectPath: String?) -> [TeamTemplate] {
+        guard let projectPath else { return sortedTeams }
+        let file = BandoPaths.projectTeamsFile(for: projectPath)
+        guard let text = try? String(contentsOf: file, encoding: .utf8),
+              let parsed = try? Self.decode(TeamsFile.self, text, file: file.path).teams else {
+            return sortedTeams
+        }
+        let presetEntries = (try? Self.decode(TeamsFile.self, Presets.teams, file: "presets/teams.toml").teams) ?? [:]
+        var merged = teams
+        for (id, entry) in parsed {
+            let base = presetEntries[id] ?? TeamEntry()
+            let combined = base.merged(with: entry)
+            if combined.enabled == false {
+                merged.removeValue(forKey: id)
+                continue
+            }
+            if let resolved = try? combined.resolved(id: id) {
+                merged[id] = resolved
+            }
+        }
+        return merged.values.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
     public func compressors(for agent: String) -> [CompressorDefinition] {
         sortedCompressors.filter { $0.supports(agent: agent) }
     }
@@ -74,9 +109,11 @@ public struct BandoConfig: Sendable {
             userProviders: try readIfExists(paths.providersFile),
             userThemes: try readIfExists(paths.themesFile),
             userMcp: try readIfExists(paths.mcpFile),
+            userTeams: try readIfExists(paths.teamsFile),
             agentsFileName: paths.agentsFile.path,
             providersFileName: paths.providersFile.path,
-            themesFileName: paths.themesFile.path
+            themesFileName: paths.themesFile.path,
+            teamsFileName: paths.teamsFile.path
         )
     }
 
@@ -87,9 +124,11 @@ public struct BandoConfig: Sendable {
         userProviders: String?,
         userThemes: String? = nil,
         userMcp: String? = nil,
+        userTeams: String? = nil,
         agentsFileName: String = "agents.toml",
         providersFileName: String = "providers.toml",
-        themesFileName: String = "themes.toml"
+        themesFileName: String = "themes.toml",
+        teamsFileName: String = "teams.toml"
     ) throws -> BandoConfig {
         let presetAgents = try decode(AgentsFile.self, Presets.agents, file: "presets/agents.toml").agents ?? [:]
         let presetProviders = try decode(ProvidersFile.self, Presets.providers, file: "presets/providers.toml").providers ?? [:]
@@ -171,11 +210,31 @@ public struct BandoConfig: Sendable {
             catch { issues.append(ConfigIssue(section: "compressors.\(id)", message: error.localizedDescription, origin: .preset)) }
         }
 
+        let presetTeams = try decode(TeamsFile.self, Presets.teams, file: "presets/teams.toml").teams ?? [:]
+        let userTm = try userTeams.map { try decode(TeamsFile.self, $0, file: teamsFileName).teams ?? [:] } ?? [:]
+        var teams: [String: TeamTemplate] = [:]
+        for id in Set(presetTeams.keys).union(userTm.keys).sorted() {
+            let base = presetTeams[id] ?? TeamEntry()
+            let entry = userTm[id].map { base.merged(with: $0) } ?? base
+            if entry.enabled == false { continue }
+            do {
+                teams[id] = try entry.resolved(id: id)
+            } catch {
+                issues.append(ConfigIssue(
+                    section: "teams.\(id)",
+                    message: error.localizedDescription,
+                    origin: presetTeams[id] == nil ? .user : (userTm[id] == nil ? .preset : .both)
+                ))
+            }
+        }
+
         var config = BandoConfig(agents: agents, providers: providers)
         config.compressors = compressors
         config.mcp = mcp
         config.themes = themes
+        config.teams = teams
         config.userThemeIds = Set(userT.keys)
+        config.userTeamIds = Set(userTm.keys)
         config.issues = issues
         config.userAgentIds = Set(userA.keys)
         config.userProviderIds = Set(userP.keys)
