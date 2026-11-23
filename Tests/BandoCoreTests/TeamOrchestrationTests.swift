@@ -325,7 +325,7 @@ struct TeamOrchestrationTests {
     }
 
     @Test("detector de envio pendente no composer reenvia Enter quando prompt fica preso")
-    func tmuxRetrySubmitDetection() {
+    func tmuxRetrySubmitDetection() throws {
         let prompt = """
         Verifique SSRF no webhook.
         Responda CURTO: achados por item e VEREDITO final (aprovar / aprovar-com-ressalvas / reprovar).
@@ -335,16 +335,101 @@ struct TeamOrchestrationTests {
           - **SSRF**: validar IP privado
           Responda CURTO: achados por item e VEREDITO final (aprovar / aprovar-com-ressalvas / reprovar).
 
-        GPT-6.1 Terra high · ~/Documents/repositorio/lizard/gerenciador-whatsapp
+        GPT-6.1 Terra high · ~/projetos/exemplo
         △ 2 warnings · f2 to view
         """
         let submittedInCodex = """
         > Responda CURTO: achados por item e VEREDITO final (aprovar / aprovar-com-ressalvas / reprovar).
         • Working (3s • esc to interrupt)
         Ask Codex to do anything
-        GPT-6.1 Terra high · ~/Documents/repositorio/lizard/gerenciador-whatsapp
+        GPT-6.1 Terra high · ~/projetos/exemplo
         """
-        #expect(Tmux.shouldRetrySubmit(prompt: prompt, captured: stuckInCodex) == true)
-        #expect(Tmux.shouldRetrySubmit(prompt: prompt, captured: submittedInCodex) == false)
+        let busy = try #require(try BandoConfig.load(userAgents: nil, userProviders: nil).agent("codex").busy.flatMap { try Regex($0) })
+        #expect(Tmux.shouldRetrySubmit(prompt: prompt, captured: stuckInCodex, busy: busy) == true)
+        #expect(Tmux.shouldRetrySubmit(prompt: prompt, captured: submittedInCodex, busy: busy) == false)
+    }
+
+    // MARK: - Segurança da ponte, dependência e worktree compartilhado
+
+    func call(_ bridge: TeamMcpBridge, _ tool: String, _ args: [String: Any] = [:]) throws -> (isError: Bool, text: String) {
+        let req = try JSONSerialization.data(withJSONObject: [
+            "jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": ["name": tool, "arguments": args],
+        ])
+        let response = try #require(bridge.handleMessage(req))
+        let result = try #require(response["result"] as? [String: Any])
+        let text = (result["content"] as? [[String: Any]])?.first?["text"] as? String ?? ""
+        return (result["isError"] as? Bool ?? false, text)
+    }
+
+    func smallTeam(_ name: String) throws -> (team: TeamRecord, lead: Session, worker: Session) {
+        let repo = try makeRepo(name)
+        let project = try service.ensureProject(at: repo.path)
+        let created = try teamService.createTeam(.init(
+            project: project, name: name, goal: "Testar segurança",
+            roles: [
+                .init(roleId: "lead", name: "Líder", responsibilities: "Coordenar", agent: "claude",
+                      isOrchestrator: true, worktree: .isolated, autoStart: false),
+                .init(roleId: "worker", name: "Worker", responsibilities: "Executar", agent: "claude",
+                      worktree: .shared, shareWorktreeWithRoleId: "lead", autoStart: false),
+            ],
+            startNow: false
+        ))
+        return (created.team,
+                try #require(created.sessions.first { $0.roleId == "lead" }),
+                try #require(created.sessions.first { $0.roleId == "worker" }))
+    }
+
+    @Test("ponte de equipe: só o orquestrador usa, sem comando no texto e sem parar a si mesmo")
+    func bridgeOnlyForOrchestrator() throws {
+        let (team, lead, worker) = try smallTeam("ponte-segura")
+
+        // Quem não é orquestrador não recebe o servidor nem consegue usar as ferramentas.
+        let (workerPlan, _, _) = try service.launchPlan(for: worker, resume: false)
+        #expect(!workerPlan.argv.joined(separator: " ").contains("bando-team"))
+        let (leadPlan, _, _) = try service.launchPlan(for: lead, resume: false)
+        #expect(leadPlan.argv.joined(separator: " ").contains("bando-team"))
+        let fromWorker = TeamMcpBridge(teamId: team.id, sessionId: worker.id, service: service)
+        #expect(try call(fromWorker, "team_list_members").isError)
+
+        let bridge = TeamMcpBridge(teamId: team.id, sessionId: lead.id, service: service)
+        #expect(try call(bridge, "team_list_members").isError == false)
+        // "!" roda shell no Claude Code; "/" abre comando do agente.
+        #expect(try call(bridge, "team_delegate", ["member": "worker", "task": "!rm -rf ~"]).isError)
+        #expect(try call(bridge, "team_delegate", ["member": "worker", "task": "  /permissions"]).isError)
+        #expect(try call(bridge, "team_stop_member", ["member": "lead"]).isError)
+        #expect(TeamMcpBridge.isCommandText("Corrija o login") == false)
+    }
+
+    @Test("ponte de equipe: limite de membros por equipe")
+    func bridgeMemberLimit() throws {
+        let (team, lead, _) = try smallTeam("ponte-limite")
+        for i in 0..<(TeamMcpBridge.maxMembers - 2) {
+            _ = try teamService.addMember(to: team.id, roleTitle: "Extra \(i)", agent: "shell", startNow: false)
+        }
+        let bridge = TeamMcpBridge(teamId: team.id, sessionId: lead.id, service: service)
+        let r = try call(bridge, "team_spawn_member", ["role": "Mais um", "responsibilities": "x", "task": "y", "agent": "shell"])
+        #expect(r.isError)
+        #expect(r.text.contains("\(TeamMcpBridge.maxMembers)"))
+    }
+
+    @Test("membro criado com conexão e dependência espera a dependência na fila")
+    func dependencyWithConnectionWaits() throws {
+        let (team, lead, worker) = try smallTeam("dependencia")
+        // A dependência ainda trabalhando (parada ela já liberaria o membro).
+        try service.transition(worker.id, to: .working, kind: "teste")
+        let member = try teamService.addMember(
+            to: team.id, roleTitle: "Revisor", agent: "shell",
+            dependsOnSessionId: worker.id, connectFromSessionId: lead.id, startNow: false)
+        let fresh = try #require(try store.session(member.id))
+        #expect(fresh.dependsOn == worker.id)
+        #expect(fresh.status == .queued)
+    }
+
+    @Test("apagar a sessão dona não remove o worktree que outro membro usa")
+    func deleteKeepsSharedWorktree() throws {
+        let (_, lead, worker) = try smallTeam("worktree-compartilhado")
+        #expect(worker.worktreePath == lead.worktreePath)
+        try service.delete(lead.id, options: .init(removeWorktree: true, force: true))
+        #expect(FileManager.default.fileExists(atPath: worker.worktreePath))
     }
 }

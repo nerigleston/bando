@@ -69,8 +69,32 @@ public final class TeamMcpBridge: @unchecked Sendable {
         }
     }
 
+    /// Limite de membros por equipe criados pela ponte: um orquestrador em laço
+    /// não consegue abrir sessões sem fim.
+    static let maxMembers = 8
+
+    /// Só o orquestrador da própria equipe usa a ponte. Os outros membros nem
+    /// recebem o servidor (ver SessionService), e isto barra quem chamar à mão.
+    func authorizedCaller() throws -> Session {
+        guard let caller = try service.store.session(sessionId), caller.teamId == teamId else {
+            throw BandoError.invalid("A sessão \(sessionId) não pertence à equipe \(teamId).")
+        }
+        guard caller.isOrchestrator else {
+            throw BandoError.invalid("Só o orquestrador da equipe pode usar estas ferramentas.")
+        }
+        return caller
+    }
+
+    /// Texto que o terminal do agente trataria como comando, não como pedido:
+    /// "!" roda shell no Claude Code e no Codex, "/" abre comandos do agente.
+    static func isCommandText(_ text: String) -> Bool {
+        guard let first = text.trimmingCharacters(in: .whitespacesAndNewlines).first else { return false }
+        return first == "!" || first == "/"
+    }
+
     func callTool(name: String, arguments args: [String: Any]) -> [String: Any] {
         do {
+            _ = try authorizedCaller()
             let text: String
             switch name {
             case "team_list_members":
@@ -138,6 +162,12 @@ public final class TeamMcpBridge: @unchecked Sendable {
         let shared = (args["shared_worktree"] as? Bool) ?? false
         let dependsOn = (args["depends_on"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         let depSession = try dependsOn.map { try teamService.findMember($0, inTeam: teamId).id }
+        if let task, Self.isCommandText(task) {
+            throw BandoError.invalid("A tarefa não pode começar com \"!\" ou \"/\": o terminal do agente rodaria como comando.")
+        }
+        guard try service.store.sessions(inTeam: teamId).count < Self.maxMembers else {
+            throw BandoError.invalid("A equipe já tem \(Self.maxMembers) membros; pare ou remova um antes de criar outro.")
+        }
 
         let created = try teamService.addMember(
             to: teamId,
@@ -172,6 +202,9 @@ public final class TeamMcpBridge: @unchecked Sendable {
         guard let member = args["member"] as? String, !member.isEmpty,
               let task = args["task"] as? String, !task.isEmpty else {
             throw BandoError.invalid("Campos obrigatórios: member e task")
+        }
+        guard !Self.isCommandText(task) else {
+            throw BandoError.invalid("A tarefa não pode começar com \"!\" ou \"/\": o terminal do agente rodaria como comando.")
         }
         let updated = try teamService.delegate(to: member, inTeam: teamId, task: task, fromSessionId: sessionId)
         return jsonString([
@@ -214,6 +247,7 @@ public final class TeamMcpBridge: @unchecked Sendable {
             throw BandoError.invalid("Campo obrigatório: member")
         }
         let target = try teamService.findMember(member, inTeam: teamId)
+        guard target.id != sessionId else { throw BandoError.invalid("O orquestrador não pode parar a si mesmo.") }
         let stopped = try service.stop(target.id)
         return jsonString(["id": stopped.id, "shortId": stopped.shortId, "status": stopped.status.rawValue])
     }

@@ -53,6 +53,15 @@ struct NewTeamSheet: View {
                     TextField("ex.: Refatoração da API", text: $name).fieldBox()
                 }
             }
+            // Modelos vindos do próprio repositório: quem escreveu o repo decide
+            // papéis, agentes e tarefas. Aviso antes de rodar.
+            if let path = projectId.flatMap(model.project)?.path,
+               FileManager.default.fileExists(atPath: BandoPaths.projectTeamsFile(for: path).path) {
+                Label("Este repositório tem .bando/teams.toml: os modelos dele aparecem aqui e podem mudar os padrões. Confira papéis e tarefas antes de criar.",
+                      systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 11.5)).foregroundStyle(StateColor.waiting)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             VStack(alignment: .leading, spacing: 5) {
                 FieldLabel("Objetivo geral", hint: "enviado ao orquestrador e à equipe")

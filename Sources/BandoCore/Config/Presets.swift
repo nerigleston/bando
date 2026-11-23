@@ -34,6 +34,7 @@ public enum Presets {
     [agents.claude]
     name     = "Claude Code"
     cmd      = "claude"
+    native_provider = "anthropic"   # conta do próprio agente equivale a este provider (sugestões de modelo)
     assign_id = ["--session-id", "{new_id}"]
     mcp       = "claude"
     fork      = ["--resume", "{native_id}", "--fork-session"]
@@ -44,6 +45,9 @@ public enum Presets {
     resume   = ["--resume", "{native_id}"]
     continue = ["--continue"]
     model    = ["--model", "{model}"]
+    # Texto que aparece enquanto trabalha. Com hooks o estado vem deles; aqui serve
+    # para o envio das equipes não reforçar o Enter com o agente já rodando.
+    busy     = 'esc to interrupt'
     status   = "hooks"
     hooks    = "claude"
     # Título no terminal: "✳ <resumo>" parado, um ponto braille girando no lugar do ✳ enquanto trabalha.
@@ -66,10 +70,14 @@ public enum Presets {
     name     = "Codex"
     mcp      = "codex"
     cmd      = "codex"
+    native_provider = "openai"   # conta do próprio agente equivale a este provider (sugestões de modelo)
     prompt   = ["{prompt}"]
     resume   = ["resume", "{native_id}"]
     continue = ["resume", "--last"]
     model    = ["--model", "{model}"]
+    # Texto que aparece enquanto trabalha. Com hooks o estado vem deles; aqui serve
+    # para o envio das equipes não reforçar o Enter com o agente já rodando.
+    busy     = 'esc to interrupt'
     status   = "hooks"
     hooks    = "codex"
     # Título no terminal (padrão do Codex: atividade | nome da conversa | pasta). Sem nome
@@ -91,6 +99,7 @@ public enum Presets {
     [agents.gemini]
     name     = "Gemini CLI"
     cmd      = "gemini"
+    native_provider = "google-gemini"   # conta do próprio agente equivale a este provider (sugestões de modelo)
     prompt   = ["--prompt-interactive", "{prompt}"]
     resume   = ["--resume", "{native_id}"]
     continue = ["--resume", "latest"]
@@ -198,6 +207,7 @@ public enum Presets {
     [agents.qwen]
     name     = "Qwen Code"
     cmd      = "qwen"
+    native_provider = "dashscope"   # conta do próprio agente equivale a este provider (sugestões de modelo)
     prompt   = ["--prompt-interactive", "{prompt}"]
     resume   = ["--resume", "{native_id}"]
     continue = ["--continue"]

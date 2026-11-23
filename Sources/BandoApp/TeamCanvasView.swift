@@ -9,6 +9,8 @@ import SwiftUI
 struct TeamCanvasView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var p
+    /// Janela em foco: a animação das conexões só roda aí (fora de foco, 0% de CPU).
+    @Environment(\.controlActiveState) private var controlActiveState
 
     @State private var zoom: CGFloat = 1.0
     @State private var pan: CGSize = .zero
@@ -185,7 +187,8 @@ struct TeamCanvasView: View {
                         .onEnded { _ in panStart = nil })
 
                 // Arestas (fios estáticos sempre leves; camada animada montada só quando ativa).
-                let animateEdges = shouldAnimateEdges(edges: edges, members: members, now: pulseClock)
+                let animateEdges = controlActiveState == .key
+                    && shouldAnimateEdges(edges: edges, members: members, now: pulseClock)
                 Canvas { ctx, _ in
                     for edge in edges {
                         guard let from = members.first(where: { $0.id == edge.fromSessionId }),
@@ -215,7 +218,7 @@ struct TeamCanvasView: View {
                 .allowsHitTesting(false)
 
                 if animateEdges {
-                    TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+                    TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { timeline in
                         Canvas { ctx, _ in
                             let now = timeline.date
                             for edge in edges {
@@ -270,6 +273,10 @@ struct TeamCanvasView: View {
                     TeamNodeCard(
                         session: session,
                         team: team,
+                        // Fora da área visível o nó mostra o resumo e solta o terminal
+                        // (o tmux mantém o agente; o SwiftTerm não precisa ficar vivo).
+                        onScreen: CGRect(origin: .zero, size: geo.size).insetBy(dx: -80, dy: -80)
+                            .intersects(CGRect(origin: origin, size: size)),
                         size: size,
                         baseOrigin: CGPoint(x: basePosition(for: session).x, y: basePosition(for: session).y),
                         baseSize: nodeBaseSize(for: session),
@@ -634,6 +641,7 @@ private struct TeamNodeCard: View {
 
     let session: Session
     let team: TeamRecord
+    let onScreen: Bool
     let size: CGSize
     let baseOrigin: CGPoint
     let baseSize: CGSize
@@ -655,7 +663,7 @@ private struct TeamNodeCard: View {
 
     var body: some View {
         let canAttach = model.canAttach(session)
-        let showLiveTerminal = canAttach && !collapsed
+        let showLiveTerminal = canAttach && !collapsed && onScreen
         let border = borderStyle
 
         VStack(spacing: 0) {

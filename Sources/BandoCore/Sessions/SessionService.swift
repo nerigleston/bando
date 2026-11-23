@@ -284,7 +284,12 @@ public final class SessionService: @unchecked Sendable {
             throw BandoError.unsafeDelete(why)
         }
         if let tmux = try? Tmux(server: s.tmuxServer), tmux.hasSession(s.tmuxName) { try tmux.kill(s.tmuxName) }
-        if s.usesWorktree, options.removeWorktree, let project, FileManager.default.fileExists(atPath: s.worktreePath) {
+        // Worktree compartilhado por outra sessão (membros de equipe na mesma pasta)
+        // fica: apagar uma delas não pode tirar o diretório de quem ainda trabalha nele.
+        let sharedWithOthers = try store.pool.read { db in
+            try Session.filter(Column("worktreePath") == s.worktreePath && Column("id") != s.id).fetchCount(db)
+        } > 0
+        if s.usesWorktree, options.removeWorktree, !sharedWithOthers, let project, FileManager.default.fileExists(atPath: s.worktreePath) {
             let git = try Git()
             try git.removeWorktree(repo: project.path, path: s.worktreePath, force: options.force)
             if options.deleteBranch, let branch = s.branch {
@@ -615,7 +620,9 @@ public final class SessionService: @unchecked Sendable {
             ? HookPresets.launchArgs(preset: agent.hooks, bandoPath: BandoCLI.path(), sessionId: s.id) : []
         let project = try store.project(s.projectId)
         var servers = mcpServers(for: agent, project: project)
-        if let teamId = s.teamId, agent.mcp != nil {
+        // Ponte da equipe só para o orquestrador: com ela um agente cria, para e
+        // manda texto para outras sessões.
+        if let teamId = s.teamId, s.isOrchestrator, agent.mcp != nil {
             servers.append(McpServer(
                 id: "bando-team",
                 name: "Bando Equipe",

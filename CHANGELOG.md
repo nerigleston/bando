@@ -1,5 +1,15 @@
 # Mudanças
 
+## 0.1.42
+
+- Modo Orquestrador multi-agente: equipes com papéis, agentes, providers e modelos diferentes no mesmo projeto, modelos de equipe (`catalog/teams.toml`, `~/.config/bando/teams.toml`), comando `bando team` e uma ponte MCP (`bando mcp-bridge`) pela qual o orquestrador lista, cria, delega, lê e para membros. Contribuição de @GabaDev2412 (#10).
+- Canvas de equipes: plano infinito com pan e pinça, nós redimensionáveis com o terminal ao vivo dentro, conexões animadas e feed de comunicação. Nós fora da área visível soltam o terminal, e a animação só roda com a janela em foco.
+- Descoberta de providers conectados e escolha de modelo por papel e por sessão.
+- Segurança da ponte: só o orquestrador recebe e usa as ferramentas, uma equipe tem no máximo 8 membros, tarefa que começa com "!" ou "/" é recusada (o terminal do agente rodaria como comando) e o orquestrador não pode parar a si mesmo.
+- Texto com várias linhas enviado a uma sessão (bando msg, pedido de resumo da troca de agente) vai como colagem: digitado, cada quebra de linha virava Enter e mandava o pedido pela metade.
+- Agentes sem hooks só contam como ociosos depois de três checagens com a tela parada, mesmo que a TUI continue redesenhando.
+- Apagar uma sessão não remove o worktree que outro membro da equipe ainda usa.
+
 ## 0.1.41
 
 - Projeto com `git init` e nenhum commit abre sessão normalmente: ela roda direto na pasta, sem worktree, como fora do git. Antes falhava com "invalid reference: master". Depois do primeiro commit, as sessões novas voltam a ganhar worktree e branch próprios.

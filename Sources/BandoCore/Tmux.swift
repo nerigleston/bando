@@ -71,49 +71,62 @@ public struct Tmux: Sendable {
         _ = try tmux(["kill-session", "-t", "=\(name)"])
     }
 
-    /// Digita texto literal (ou colagem com bracketed paste para instruções multilinhas) e, se pedido, Enter.
+    /// Digita texto literal e, se pedido, Enter. Texto com várias linhas vai como
+    /// colagem (bracketed paste): digitado, cada quebra de linha viraria um Enter
+    /// e mandaria o pedido pela metade.
     public func send(_ name: String, text: String, enter: Bool = true) throws {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let payload = trimmed.isEmpty ? text : trimmed
-        let usePaste = payload.contains("\n") || payload.contains("\r") || payload.count > 120
-
-        if usePaste {
-            let bufferName = "bando-\(UUID().uuidString.prefix(8))"
-            let load = try tmux(["load-buffer", "-b", bufferName, "-"], input: payload)
-            guard load.ok else { throw BandoError.command("tmux load-buffer", load.stderr) }
-            let paste = try tmux(["paste-buffer", "-d", "-p", "-b", bufferName, "-t", "=\(name):"])
-            if !paste.ok {
-                _ = try? tmux(["delete-buffer", "-b", bufferName])
-                throw BandoError.command("tmux paste-buffer", paste.stderr)
-            }
+        let multiline = text.contains("\n") || text.contains("\r")
+        if multiline {
+            try paste(name, text: text)
         } else {
-            let r = try tmux(["send-keys", "-t", "=\(name):", "-l", payload])
+            let r = try tmux(["send-keys", "-t", "=\(name):", "-l", text])
             guard r.ok else { throw BandoError.command("tmux send-keys", r.stderr) }
         }
-        // CLIs como Codex e Antigravity têm janela pós-paste (~500 ms) em que Enter
-        // vira quebra de linha dentro do composer em vez de enviar o prompt.
+        // Texto digitado de uma vez parece "colado" para algumas CLIs (Codex),
+        // e um Enter imediato vira quebra de linha. Uma pausa curta resolve;
+        // depois de uma colagem a janela é maior (~500 ms no Codex e no Antigravity).
         if enter {
-            let settleDelay = usePaste ? 0.85 : (payload.count > 40 ? 0.5 : 0.25)
-            Thread.sleep(forTimeInterval: settleDelay)
+            Thread.sleep(forTimeInterval: multiline ? 0.85 : 0.25)
             _ = try tmux(["send-keys", "-t", "=\(name):", "Enter"])
-
-            if usePaste {
-                for _ in 0..<2 {
-                    Thread.sleep(forTimeInterval: 0.45)
-                    let screen = capture("=\(name):", lines: 14)
-                    if Self.shouldRetrySubmit(prompt: payload, captured: screen) {
-                        Thread.sleep(forTimeInterval: 0.35)
-                        _ = try tmux(["send-keys", "-t", "=\(name):", "Enter"])
-                    } else {
-                        break
-                    }
-                }
-            }
         }
     }
 
-    /// Verifica se um prompt longo ainda ficou preso dentro da caixa de entrada sem enviar.
-    static func shouldRetrySubmit(prompt: String, captured: String) -> Bool {
+    /// Cola o texto com bracketed paste, por um buffer temporário do tmux.
+    func paste(_ name: String, text: String) throws {
+        let bufferName = "bando-\(UUID().uuidString.prefix(8))"
+        let load = try tmux(["load-buffer", "-b", bufferName, "-"], input: text)
+        guard load.ok else { throw BandoError.command("tmux load-buffer", load.stderr) }
+        let paste = try tmux(["paste-buffer", "-d", "-p", "-b", bufferName, "-t", "=\(name):"])
+        if !paste.ok {
+            _ = try? tmux(["delete-buffer", "-b", bufferName])
+            throw BandoError.command("tmux paste-buffer", paste.stderr)
+        }
+    }
+
+    /// Envio das equipes: instrução longa vai colada e, se o texto ainda estiver
+    /// parado na caixa de entrada depois do Enter, reforça o Enter até duas vezes.
+    /// `busy` é o padrão do catálogo que mostra o agente trabalhando (aí não reforça).
+    public func sendInstruction(_ name: String, text: String, busy: Regex<AnyRegexOutput>?) throws {
+        let usePaste = text.contains("\n") || text.contains("\r") || text.count > 120
+        if usePaste { try paste(name, text: text) } else {
+            let r = try tmux(["send-keys", "-t", "=\(name):", "-l", text])
+            guard r.ok else { throw BandoError.command("tmux send-keys", r.stderr) }
+        }
+        Thread.sleep(forTimeInterval: usePaste ? 0.85 : (text.count > 40 ? 0.5 : 0.25))
+        _ = try tmux(["send-keys", "-t", "=\(name):", "Enter"])
+        guard usePaste else { return }
+        for _ in 0..<2 {
+            Thread.sleep(forTimeInterval: 0.45)
+            let screen = capture("=\(name):", lines: 14)
+            guard Self.shouldRetrySubmit(prompt: text, captured: screen, busy: busy) else { break }
+            Thread.sleep(forTimeInterval: 0.35)
+            _ = try tmux(["send-keys", "-t", "=\(name):", "Enter"])
+        }
+    }
+
+    /// O fim do texto ainda aparece no pé da tela, sem sinal de trabalho depois:
+    /// o Enter virou quebra de linha na caixa de entrada.
+    static func shouldRetrySubmit(prompt: String, captured: String, busy: Regex<AnyRegexOutput>?) -> Bool {
         let promptLines = prompt
             .split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -130,10 +143,7 @@ public struct Tmux: Sendable {
 
         let trailing = lines[(idx + 1)...]
         guard trailing.count <= 3 else { return false }
-        let activeMarkers = ["Working", "esc to interrupt", "Thinking", "Cogitat", "Ask Codex"]
-        if trailing.contains(where: { line in activeMarkers.contains(where: { line.contains($0) }) }) {
-            return false
-        }
+        if let busy, trailing.contains(where: { $0.firstMatch(of: busy) != nil }) { return false }
         return true
     }
 

@@ -136,7 +136,9 @@ final class AppModel {
         /// Canvas multi-agente de uma equipe (nil = última ou primeira equipe).
         case canvas(String?)
     }
-    var route: Route = .sessions
+    var route: Route = .sessions {
+        didSet { updateAppNapPolicy(for: sessions) }
+    }
     var selectedTeamId: String? {
         didSet { if let selectedTeamId { Prefs.store.set(selectedTeamId, forKey: "selectedTeamId") } }
     }
@@ -259,7 +261,14 @@ final class AppModel {
     }
 
     private func updateAppNapPolicy(for fresh: [Session]) {
-        let hasActiveWork = fresh.contains { $0.status == .working || $0.status == .starting || $0.status == .waiting }
+        // Só com o Canvas aberto e um membro de equipe ativo: os agentes rodam no
+        // tmux e a orquestração no bando mcp-bridge, fora do app. Desligar o App Nap
+        // sempre que algo trabalha tiraria o agrupamento de timers do app inteiro.
+        var canvasOpen = false
+        if case .canvas = route { canvasOpen = true }
+        let hasActiveWork = canvasOpen && fresh.contains {
+            $0.teamId != nil && ($0.status == .working || $0.status == .starting || $0.status == .waiting)
+        }
         if hasActiveWork, liveActivityToken == nil {
             liveActivityToken = ProcessInfo.processInfo.beginActivity(
                 options: .userInitiatedAllowingIdleSystemSleep,

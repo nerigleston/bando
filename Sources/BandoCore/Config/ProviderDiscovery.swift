@@ -180,7 +180,7 @@ public enum ProviderDiscovery {
             if let agent = config.agents[agentId], !agent.models.isEmpty {
                 append(agent.models)
             }
-            if let nativeProvider = nativeProviderId(for: agentId),
+            if let nativeProvider = config.agents[agentId]?.nativeProvider,
                let p = config.providers[nativeProvider] {
                 append(p.models)
             }
@@ -190,15 +190,5 @@ public enum ProviderDiscovery {
         if let live = discovered[providerId] { append(live) }
         if let p = config.providers[providerId] { append(p.models) }
         return result
-    }
-
-    private static func nativeProviderId(for agentId: String) -> String? {
-        switch agentId {
-        case "claude": "anthropic"
-        case "codex": "openai"
-        case "gemini": "google-gemini"
-        case "qwen": "dashscope"
-        default: nil
-        }
     }
 }

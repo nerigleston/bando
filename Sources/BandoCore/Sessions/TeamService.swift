@@ -329,14 +329,22 @@ public final class TeamService: @unchecked Sendable {
         )
         let session = try createMemberSession(team: team, project: project, spec: spec, prompt: prompt, shareOwner: shareOwner)
 
-        if let fromId = connectFromSessionId ?? (dependsOnSessionId != nil ? dependsOnSessionId : nil) {
+        // A dependência vale sempre, com ou sem conexão de quem criou: antes,
+        // com connectFromSessionId preenchido o membro começava sem esperar.
+        if let dep = dependsOnSessionId {
+            try service.setDependency(session.id, parent: dep)
+            // Dependência ainda rodando: o membro espera na fila e inicia sozinho
+            // quando ela terminar (mesmo caminho do --depends-on).
+            if let parent = try store.session(dep), !parent.status.releasesDependents {
+                try service.transition(session.id, to: .queued, kind: "queued", detail: "esperando \(parent.roleTitle ?? parent.name)")
+            }
+        }
+        if let fromId = connectFromSessionId ?? dependsOnSessionId {
             let kind: TeamEdgeKind = dependsOnSessionId != nil && connectFromSessionId == nil ? .sequence : edgeKind
             _ = try? connect(teamId: teamId, from: fromId, to: session.id, kind: kind, label: nil, syncContext: false)
             if startNow {
                 recordFlow(teamId: teamId, from: fromId, to: session.id)
             }
-        } else if let dep = dependsOnSessionId {
-            try service.setDependency(session.id, parent: dep)
         }
 
         syncContextFiles(teamId: teamId)
@@ -531,7 +539,9 @@ public final class TeamService: @unchecked Sendable {
                     Thread.sleep(forTimeInterval: 0.45)
                 }
             }
-            try service.message(target.id, text: cleanTask, enter: true)
+            let busy = (try? service.config.agent(target.agent))?.busy.flatMap { try? Regex($0) }
+            try tmux.sendInstruction(target.tmuxName, text: cleanTask, busy: busy)
+            try service.record(target.id, kind: "message", detail: String(cleanTask.prefix(200)))
             let summary = "\(routeLabel): \(cleanTask.replacingOccurrences(of: "\n", with: " ").prefix(140))"
             try service.record(target.id, kind: "team-delegate", detail: summary)
             let latestStatus = (try? store.session(target.id)?.status) ?? target.status

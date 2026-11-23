@@ -519,8 +519,9 @@ final class OutputWatcher: @unchecked Sendable {
         } else {
             unchangedChecks += 1
         }
-        if noisy && (screenChanged || unchangedChecks < 2) {
-            // Ainda escrevendo ou só redesenhando na primeira checagem: confere no próximo intervalo.
+        if noisy && (screenChanged || unchangedChecks < 3) {
+            // Ainda escrevendo, ou tela igual há pouco tempo (uma ferramenta longa pode
+            // ficar parada): só conta como ociosa depois de 3 checagens sem mudar.
             armTimer(after: Double(agent.idleAfter))
             return
         }

@@ -70,6 +70,9 @@ public struct AgentDefinition: Sendable, Equatable {
     public var modelConfig: ModelConfigTarget? = nil
     /// Sugestões de modelos quando o provider é a conta do próprio agente.
     public var models: [String] = []
+    /// Provider do catálogo que equivale à conta do próprio agente (Claude Code →
+    /// anthropic): os modelos dele entram nas sugestões da "Conta do agente".
+    public var nativeProvider: String? = nil
 }
 
 /// Forma "parcial" lida do TOML. Tudo opcional para permitir que o arquivo do
@@ -103,6 +106,7 @@ struct AgentEntry: Codable, Sendable {
     var trust: TrustAdapter?
     var modelConfig: ModelConfigTarget?
     var models: [String]?
+    var nativeProvider: String?
 
     enum CodingKeys: String, CodingKey {
         case name, cmd, prompt, fresh, fork, resume, `continue`, model, args, env, status
@@ -113,6 +117,7 @@ struct AgentEntry: Codable, Sendable {
         case promptVia = "prompt_via"
         case assignId = "assign_id"
         case modelConfig = "model_config"
+        case nativeProvider = "native_provider"
     }
 
     /// Campos de `override` vencem; os ausentes ficam com o valor de `self`.
@@ -145,7 +150,8 @@ struct AgentEntry: Codable, Sendable {
             terminalTitle: o.terminalTitle ?? terminalTitle,
             trust: o.trust ?? trust,
             modelConfig: o.modelConfig ?? modelConfig,
-            models: o.models ?? models
+            models: o.models ?? models,
+            nativeProvider: o.nativeProvider ?? nativeProvider
         )
     }
 
@@ -194,7 +200,8 @@ struct AgentEntry: Codable, Sendable {
             terminalTitle: terminalTitle,
             trust: trust,
             modelConfig: modelConfig,
-            models: models ?? []
+            models: models ?? [],
+            nativeProvider: nativeProvider
         )
     }
 }
